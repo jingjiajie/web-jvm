@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Hello</title>
+</head>
+<body>
+    <script src="./jvm.js"></script>
+    <script src="./interpreter.js"></script>
+    <script src="./long.js"></script>
+    <script src="./native_methods.js"></script>
+
+    <input type="button" value="运行" onclick="run()" />
+
+    <script>
+    
+function run(){
+    var cls = jvm.loadClass('Main');
+    jvm.interpreter.invokeFirst(cls, cls.methods['main([Ljava/lang/String;)V'])
+}
+
+    </script>
+</body>
+</html>
