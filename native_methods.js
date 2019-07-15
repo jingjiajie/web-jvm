@@ -655,9 +655,9 @@ jvm.nativemethods["java/lang/Double.doubleToRawLongBits(D)J"] = function(d, d0) 
 
 jvm.nativemethods["java/lang/Throwable.getStackTraceElement(I)Ljava/lang/StackTraceElement;"] = function(me, index) {
 	var el = jvm.newInstance("java/lang/StackTraceElement");
-	el.setField("declaringClass", me.theTrace[index].declaringClass);
-	el.setField("methodName", me.theTrace[index].methodName);
-	el.setField("fileName", "");
+	el.setField("declaringClass", jvm.newInternedString(me.theTrace[index].declaringClass));
+	el.setField("methodName", jvm.newInternedString(me.theTrace[index].methodName));
+	el.setField("fileName", jvm.newInternedString(""));
 	el.setField("lineNumber", -1);
 	return el;
 }
@@ -933,21 +933,22 @@ jvm.nativemethods["java/io/FileOutputStream.initIDs()V"] = function(me) {
 }
 
 jvm.nativemethods["java/io/FileOutputStream.writeBytes([BIIZ)V"] = function(me, bytes, start, len, append /*TODO: unimplemented */) {
-	var buf = []
-	for(var i = start; i < start+len; i++) {
-		buf.push(String.fromCharCode(bytes[i]));
+	var buf = new Array(len);
+	for(var i=start; i < start+len; ++i) {
+		buf[i] = String.fromCharCode(bytes[i]);
 	}
 	var str = buf.join('');
 	switch(me.fd.fd){
 		case 1: 
+			if(str == '\n') break;
 			console.log(str);
 			break;
 		case 2:
-			console.error(str);
+			if(str == '\n') break;
+			console.log(str);
 			break;
 		default:
 			debugger; /* 文件描述符先只实现1和2.. */
-
 	}
 }
 

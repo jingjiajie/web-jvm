@@ -273,8 +273,6 @@ jvm.interpreter = {};
 				this.yield();
 			}
 			if(this.currentThread.__thrown !== undefined) {
-				console.log("Exception thrown: " + this.currentThread.__thrown.detailMessage.toString())
-				var throwable = console.log("	(Exception object:)", this.currentThread.__thrown);
 				var found = false;
 				for(var j = 0; j < method.exception_handlers.length; j++) {
 					var handler = method.exception_handlers[j];
@@ -284,20 +282,14 @@ jvm.interpreter = {};
 					}
 					if (handler.catch_type) {
 						var catchclazz = jvm.loadClass(handler.catch_type);
-						if (this.instanceOf(this.currentThread.__thrown, catchclazz)) {
-							stack = [this.currentThread.__thrown];
-							pos = offset + handler.handler_pc;
-							found = true;
-							this.currentThread.__thrown = undefined;
-							break;
-						}
-					} else {
-						// finally
-	//					stack = [this.__thrown];
-	//					pos = offset + handler.handler_pc;
-	//					found = true;
-	//					this.__thrown = undefined;
+						if (!this.instanceOf(this.currentThread.__thrown, catchclazz)) continue;
 					}
+					//catched
+					stack = [this.currentThread.__thrown];
+					pos = offset + handler.handler_pc;
+					found = true;
+					this.currentThread.__thrown = undefined;
+					break;
 				}
 				if (!found) {
 					doReturn(__nothing);
@@ -1036,7 +1028,6 @@ jvm.interpreter = {};
 				stack.push(stack.pop().length);
 				break;
 			case 191: // athrow
-				debugger;
 				this.currentThread.__thrown = stack.pop();
 				break;
 			case 192: // checkcast
@@ -1103,29 +1094,6 @@ jvm.interpreter = {};
 			default:
 				throw("unimplemented instruction: " + instr);
 			}
-
-			// function handleStringField(str, fieldname) {
-			// 	switch(fieldname) {
-			// 	case 'count':
-			// 		stack.push(jObj.length);
-			// 		break;
-			// 	case 'value':
-			// 		stack.push(jvm.newArrayFromValue(CLAZZ_CHAR, jObj));
-			// 		break;
-			// 	case 'offset':
-			// 		stack.push(0);
-			// 		break;
-			// 	case 'hash':
-			// 		var h = 0;
-			// 		for (var i = 0; i < jObj.length; i++) {
-			// 			h = 31*h + jObj.charCodeAt(i);
-			// 		}
-			// 		stack.push(h);
-			// 		break;
-			// 	default:
-			// 		throw 'Property ' + fieldname + ' not implemented for Strings';
-			// 	}
-			// }
 		}
 		
 	//	var exception_table_length = reader.u2();
