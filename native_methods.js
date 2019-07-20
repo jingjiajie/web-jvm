@@ -140,9 +140,9 @@ jvm.nativemethods["java/lang/Object.hashCode()I"] = function(me) {
 jvm.nativemethods["java/lang/Object.getClass()Ljava/lang/Class;"] = function(me) {
 	if (typeof me == 'string') {
 		debugger;
-		//return jvm.getClassClass('string', jvm.loadClass('java/lang/String'));
+		//return jvm.getClassObject('string', jvm.loadClass('java/lang/String'));
 	}
-	return jvm.getClassClass(me.getType(), me.getType() == 'array' ? me.getComponentClazz() : me.getClazz());
+	return jvm.getClassObject(me.getClazz());
 }
 
 // Class
@@ -192,15 +192,15 @@ jvm.nativemethods["java/lang/Class.getName0()Ljava/lang/String;"] = function(me)
 }
 jvm.nativemethods["java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;"] = function(cls, initialize, loader) {
 	if(typeof cls == 'string') debugger; //	cls = (typeof cls == 'string' ? cls : cls.getField("value").join(''));
-	return jvm.getClassClass('object', jvm.loadClass(cls.toString().replace(/\./g, "/")));
+	return jvm.getClassObject(jvm.loadClass(cls.toString().replace(/\./g, "/")));
 }
 
 jvm.nativemethods["java/lang/Class.isArray()Z"] = function(me) {
-	return me.theType == 'array' ? 1 : 0;
+	return me.theType == 'array' ? true : false;
 }
 
 jvm.nativemethods["java/lang/Class.isInterface()Z"] = function(me) {
-	return (me.theType !== 'array' && me.theClazz && (me.theClazz.access_flags & 0x0200)) ? 1 : 0;
+	return (me.theType !== 'array' && me.theClazz && (me.theClazz.access_flags & 0x0200)) ? true : false;
 }
 
 jvm.nativemethods["java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflect/Constructor;"] = function(me, publicOnly) {
@@ -210,19 +210,21 @@ jvm.nativemethods["java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflec
 		if (!name.match(/^<init>.*/)) {
 			continue;
 		}
+		var method = methods[name];
+		if(publicOnly && !(method.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
 		var m = jvm.newInstance("java/lang/reflect/Constructor");
-		m.setField("theMethod", methods[name]);
-		m.setField("name", jvm.newInternedString(methods[name].name));
-		m.setField("modifiers", methods[name].access_flags);
+		m.setField("theMethod", method);
+		m.setField("name", jvm.newInternedString(method.name));
+		m.setField("modifiers", method.access_flags);
 		m.setField("clazz", me);
 		
 		var exceptionTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 		m.setField("exceptionTypes", exceptionTypes);
 		
 		var parameterTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
-		for(var i = 0; i < methods[name].paramTypes.length; i++) {
-			var type = methods[name].paramTypes[i];
-			parameterTypes.push(jvm.getClassFromDescriptor(type));
+		for(var i = 0; i < method.paramTypes.length; i++) {
+			var type = method.paramTypes[i];
+			parameterTypes.push(jvm.getClassObjectFromDescriptor(type));
 		}
 		m.setField("parameterTypes", parameterTypes);
 		array.push(m);
@@ -237,19 +239,21 @@ jvm.nativemethods["java/lang/Class.getDeclaredMethods0(Z)[Ljava/lang/reflect/Met
 		if (name.match(/^<(cl)?init>.*/)) {
 			continue;
 		}
+		var method = methods[name];
+		if(publicOnly && !(method.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
 		var m = jvm.newInstance("java/lang/reflect/Method");
-		m.setField("theMethod", methods[name]);
-		m.setField("name", jvm.newInternedString(methods[name].name));
+		m.setField("theMethod", method);
+		m.setField("name", jvm.newInternedString(method.name));
 		m.setField("clazz", me);
-		m.setField("returnType", methods[name].returnType ? jvm.getClassFromDescriptor(methods[name].returnType) : null);
+		m.setField("returnType", method.returnType ? jvm.getClassObjectFromDescriptor(method.returnType) : null);
 		
 		var exceptionTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 		m.setField("exceptionTypes", exceptionTypes);
 		
 		var parameterTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
-		for(var i = 0; i < methods[name].paramTypes.length; i++) {
-			var type = methods[name].paramTypes[i];
-			parameterTypes.push(jvm.getClassFromDescriptor(type));
+		for(var i = 0; i < method.paramTypes.length; i++) {
+			var type = method.paramTypes[i];
+			parameterTypes.push(jvm.getClassObjectFromDescriptor(type));
 		}
 		m.setField("parameterTypes", parameterTypes);
 		array.push(m);
@@ -261,7 +265,7 @@ jvm.nativemethods["java/lang/Class.getInterfaces()[Ljava/lang/Class;"] = functio
 	var interfaces = me.theClazz.interfaces;
 	var array = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 	for(var i = 0; i < interfaces.length; i++) {
-		array.push(jvm.getClassClass('object', jvm.loadClass(interfaces[i])));
+		array.push(jvm.getClassObject(jvm.loadClass(interfaces[i])));
 	}
 	return array;
 }
@@ -274,19 +278,34 @@ jvm.nativemethods["java/lang/Class.getDeclaredFields0(Z)[Ljava/lang/reflect/Fiel
 	var fields = me.theClazz.fields;
 	var array = jvm.newArray(jvm.loadClass("java/lang/reflect/Field"), 0);
 	for(var name in fields) {
+		var field = fields[name];
+		if(publicOnly && !(field.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
 		var f = jvm.newInstance("java/lang/reflect/Field");
-		f.theField = fields[name];
-		f.name = jvm.newInternedString(fields[name].name);
-		f.modifiers = fields[name].access_flags;
+		f.theField = field;
+		f.name = jvm.newInternedString(field.name);
+		f.modifiers = field.access_flags;
 		f["clazz"] = me;
-		f.type = jvm.getClassFromDescriptor(fields[name].descriptor);
+		f.type = jvm.getClassObjectFromDescriptor(field.descriptor);
 		array.push(f);
 	}
 	return array;
 }
 
 jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;"] = function(str) {
-	return jvm.getPrimitiveClass(str.toString());
+	var descriptor;
+	switch(str.toString()){
+		case 'void': descriptor = 'V'; break;
+		case "boolean": descriptor = 'Z'; break;
+		case "char": descriptor = 'C'; break;
+		case "float": descriptor = 'F'; break;
+		case "double": descriptor = 'D'; break;
+		case "byte": descriptor = 'B'; break;
+		case "short": descriptor = 'S'; break;
+		case "int": descriptor = 'I'; break;
+		case "long": descriptor = 'J'; break;
+		default: throw 'unknown primitive: ' + str.toString();
+	}
+	return jvm.getClassObjectFromDescriptor(descriptor);
 }
 
 jvm.nativemethods["java/lang/Class.getComponentType()Ljava/lang/Class;"] = function(me) {
@@ -407,14 +426,14 @@ jvm.nativemethods["java/util/concurrent/atomic/AtomicLong.VMSupportsCS8()Z"] = f
 // Reflection
 jvm.nativemethods["sun/reflect/Reflection.getCallerClass(I)Ljava/lang/Class;"] = function() {
 	/* 这他妈直接返回Object了？ */
-	var instance = jvm.getClassClass('object', jvm.loadClass("java/lang/Object"));
+	var instance = jvm.getClassObject(jvm.loadClass("java/lang/Object"));
 	return instance;
 }
 
 // Reflection
 jvm.nativemethods["sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;"] = function() {
 	/* 这他妈直接返回Object了？ */
-	var instance = jvm.getClassClass('object', jvm.loadClass("java/lang/Object"));
+	var instance = jvm.getClassObject(jvm.loadClass("java/lang/Object"));
 	return instance;
 }
 
@@ -427,7 +446,7 @@ jvm.nativemethods["java/lang/Class.getModifiers()I"] = function(me) {
 }
 
 jvm.nativemethods["java/lang/Class.getSuperclass()Ljava/lang/Class;"] = function(me) {
-	return me.theClazz.superClass ? jvm.getClassClass('object', jvm.loadClass(me.theClazz.superClass)) : null;
+	return me.theClazz.superClass ? jvm.getClassObject(jvm.loadClass(me.theClazz.superClass)) : null;
 }
 
 jvm.nativemethods["sun/reflect/NativeMethodAccessorImpl.invoke0(Ljava/lang/reflect/Method;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"] = function(method, instance, args) {
@@ -468,7 +487,7 @@ jvm.nativemethods["sun/reflect/NativeConstructorAccessorImpl.newInstance0(Ljava/
 	}
 	var paramTypes = "";
 	for(var i = 0; i < cstructor.parameterTypes.length; i++) {
-		paramTypes += jvm.getDescriptorFromClass(cstructor.parameterTypes[i]);
+		paramTypes += cstructor.parameterTypes[i].theClazz.descriptor;
 	}
 	jvm.interpreter.invokeFirst(instance.getClazz(), instance.getClazz().methods["<init>(" + paramTypes + ")V"], locals);
 	return instance;
@@ -700,7 +719,7 @@ jvm.nativemethods["sun/misc/VM.getThreadStateValues([[I[[Ljava/lang/String;)V"] 
 	var index = 0;
 	function addValue(stateint, statename) {
 		statename = jvm.newString(statename);
-		var intval = jvm.newArray(CLAZZ_INT, 1);
+		var intval = jvm.newArray(jvm.loadClass('I'), 1);
 		intval[0] = stateint;
 		ints[index] = intval;
 		
@@ -840,7 +859,7 @@ jvm.nativemethods["java/lang/Thread.currentThread()Ljava/lang/Thread;"] = functi
 		o.setField("daemon", 0);
 		o.setField("tid", Long.fromNumber(1));
 		o.setField("threadStatus", 1);
-		o.setField("name", jvm.newArrayFromValue(CLAZZ_CHAR, "main"));
+		o.setField("name", jvm.newArrayFromValue(jvm.loadClass('C'), "main"));
 		o.theThread = jvm.interpreter.currentThread;
 		jvm.interpreter.currentThread.javaThreadObject = o;
 	}
@@ -1041,7 +1060,7 @@ jvm.nativemethods["java/io/FileDescriptor.set(I)J"] = function(me, n) {
 
 // ResourceBundle
 jvm.nativemethods["java/util/ResourceBundle.getClassContext()[Ljava/lang/Class;"] = function() {
-	var objClass = jvm.getClassClass("object", jvm.loadClass("java/lang/Object"));
+	var objClass = jvm.getClassObject(jvm.loadClass("java/lang/Object"));
 	var arr = jvm.newArray(jvm.loadClass("java/lang/Class"), 3);
 	arr.arr = [objClass, objClass, objClass];
 	return arr;
@@ -1049,7 +1068,7 @@ jvm.nativemethods["java/util/ResourceBundle.getClassContext()[Ljava/lang/Class;"
 
 // Classloader
 jvm.nativemethods["java/lang/ClassLoader.findLoadedClass0(Ljava/lang/String;)Ljava/lang/Class;"] = function(me, str) {
-	return jvm.getClassClass('object', jvm.loadClass(str.toString().replace(/\./g, "/")));
+	return jvm.getClassObject(jvm.loadClass(str.toString().replace(/\./g, "/")));
 }
 
 jvm.nativemethods["java/lang/ClassLoader$NativeLibrary.load(Ljava/lang/String;)V"] = function(me, str) {
@@ -1057,7 +1076,7 @@ jvm.nativemethods["java/lang/ClassLoader$NativeLibrary.load(Ljava/lang/String;)V
 }
 
 jvm.nativemethods["java/lang/ClassLoader.findBootstrapClass(Ljava/lang/String;)Ljava/lang/Class;"] = function(me, str) {
-	return jvm.getClassClass('object', jvm.loadClass(str.toString().replace(/\./g, "/")));
+	return jvm.getClassObject(jvm.loadClass(str.toString().replace(/\./g, "/")));
 }
 
 // Console
@@ -1074,10 +1093,10 @@ jvm.nativemethods["com/apple/java/AppleSystemLog.initASLNative()Z"] = function()
 
 // ProcessEnvironment
 jvm.nativemethods["java/lang/ProcessEnvironment.environ()[[B"] = function() {
-	var arrayobject = this.newArray(jvm.getClassFromDescriptor("[[B"), 0);
+	var arrayobject = this.newArray(jvm.getClassObjectFromDescriptor("[[B"), 0);
 	return arrayobject;
 //	for(var i = 0; i < counts[0]; i++) {
-//		arrayobject[i] = this.newArray(jvm.getClassFromDescriptor(cls.substring(1)), counts[1]);
+//		arrayobject[i] = this.newArray(jvm.getClassObjectFromDescriptor(cls.substring(1)), counts[1]);
 //	}
 };
 

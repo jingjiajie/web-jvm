@@ -251,13 +251,7 @@ jvm.interpreter = {};
 	function u4() {
 		return 256*256*256*bytes[pos++] + 256*256*bytes[pos++] + 256*bytes[pos++] + bytes[pos++];
 	}
-	
-	function log() {
-		if (jvm.verbose) {
-			console.log.apply(console, arguments);
-		}
-	}
-	
+
 	this.resume = function() {
 		done = false;
 		if (this.currentThread.onResume) {
@@ -296,15 +290,8 @@ jvm.interpreter = {};
 					continue;
 				}
 			}
-	
+			
 			var instr = bytes[pos++];
-//			if (jvm.verbose) {
-//			log("method : " + clazz.name + "." + method.name + method.descriptor + ", pc=" + (pos - offset));
-//			log("instr: ",instr);
-				//		console.log("stack: ",stack);
-//			log("stack: (" + stack.length + ") ",stack[0], stack[1], stack[2]);
-//			log("locals: (" + locals.length + ") ",locals[0], locals[1], locals[2], locals[3]);
-//			}
 			switch(instr) {
 			case 0: //nop
 				break;
@@ -370,11 +357,11 @@ jvm.interpreter = {};
 					break;
 				case 7: // Class
 					var cls = cp[cp[idx]];
-					if (cls.substring(0, 1) == "[") {
-						stack.push(jvm.getClassClass('array', jvm.getClassFromDescriptor(cls.substring(1))));
-					} else {
-						stack.push(jvm.getClassClass('object', jvm.loadClass(cls)));
-					}
+					// if (cls.substring(0, 1) == "[") {
+					// 	stack.push(jvm.getClassObject('array', jvm.getClassObjectFromDescriptor(cls.substring(1))));
+					// } else {
+						stack.push(jvm.getClassObject(jvm.loadClass(cls)));
+					// }
 					break;
 				default:
 					stack.push(cp[idx]);
@@ -1006,14 +993,14 @@ jvm.interpreter = {};
 				var count = stack.pop();
 				var type = bytes[pos++];
 				var clzs = {
-					4: CLAZZ_BOOLEAN,
-					5: CLAZZ_CHAR,
-					6: CLAZZ_FLOAT,
-					7: CLAZZ_DOUBLE,
-					8: CLAZZ_BYTE,
-					9: CLAZZ_SHORT,
-					10: CLAZZ_INT,
-					11: CLAZZ_LONG
+					4: jvm.loadClass('Z'),
+					5: jvm.loadClass('C'),
+					6: jvm.loadClass('F'),
+					7: jvm.loadClass('D'),
+					8: jvm.loadClass('B'),
+					9: jvm.loadClass('S'),
+					10: jvm.loadClass('I'),
+					11: jvm.loadClass('J')
 				}
 				var componentClazz = clzs[type];
 				stack.push(jvm.newArray(componentClazz, count));
