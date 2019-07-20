@@ -846,7 +846,7 @@ jvm.nativemethods["java/lang/Thread.currentThread()Ljava/lang/Thread;"] = functi
 		o.setField("daemon", 0);
 		o.setField("tid", Long.fromNumber(1));
 		o.setField("threadStatus", 1);
-		o.setField("name", jvm.newArrayFromValue(jvm.loadClass('C'), "main"));
+		o.setField("name", jvm.newString("main").value);
 		o.theThread = jvm.interpreter.currentThread;
 		jvm.interpreter.currentThread.javaThreadObject = o;
 	}

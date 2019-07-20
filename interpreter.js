@@ -295,17 +295,11 @@ jvm.interpreter = {};
 			switch (instr) {
 				case 0: //nop
 					break;
-
 				case 1: // aconst_null
 					stack.push(null);
 					break;
-				case 2:
-				case 3:
-				case 4:
-				case 5:
-				case 6:
-				case 7:
-				case 8: // iconst_<i>
+				case 2: case 3: case 4: case 5:
+				case 6: case 7: case 8: // iconst_<i>
 					stack.push(instr - 3);
 					break;
 				case 9: // lconst_0
@@ -616,9 +610,9 @@ jvm.interpreter = {};
 					var value1 = stack.pop();
 					var s = value2 & 0x1F; // low 5 bits
 					if (value1 >= 0) {
-						stack.push(value1 >> s);
+						stack.push(value1 >>> s);
 					} else {
-						stack.push((value1 >> s) + (2 << ~s));
+						stack.push((value1 >>> s) + (2 << ~s));
 					}
 					break;
 				case 125: // lushr
@@ -887,7 +881,7 @@ jvm.interpreter = {};
 						break;
 					}
 					var nextMethod = nextKlass.methods[nextMethodName];
-					//console.log(className + '.' + nextMethodName);
+					// console.log(className + '.' + nextMethodName);
 					while (!nextMethod) {
 						var interfaceList = nextKlass.interfaces;
 						function scanInterfaces(interfaces) {

@@ -527,49 +527,69 @@ var jvm = {};
 		return jvm.classObjects[key];
 	}
 
-	var JObjectProto = makeCommonPrototype(Object.prototype);
-
-	var JArrayProto = makeCommonPrototype(Array.prototype);
-	JArrayProto.getComponentKlass = function () {
-		return this[".metadata"].componentKlass;
-	}
-
-	var JStringProto = makeCommonPrototype(Object.prototype);
-	JStringProto.toString = function () {
-		if (!('nativeString' in this)) {
-			var charArrValue = this.value;
-			var chars = new Array(charArrValue.length);
-			for (var i = 0; i < charArrValue.length; ++i) {
-				chars[i] = String.fromCharCode(charArrValue[i]);
-			}
-			this.nativeString = chars.join('');
-		}
-		return this.nativeString;
-	}
+	var JObjectProto = makeObjectPrototype(Object.prototype);
+	var JArrayProto = makeArrayPrototype(Array.prototype);
+	var JArrayProtoUint8 = makeObjectPrototype(Uint8Array.prototype);
+	var JArrayProtoUint16 = makeObjectPrototype(Uint16Array.prototype);
+	var JArrayProtoUint32 = makeObjectPrototype(Uint32Array.prototype);
+	var JArrayProtoInt8 = makeObjectPrototype(Int8Array.prototype);
+	var JArrayProtoInt16 = makeObjectPrototype(Int16Array.prototype);
+	var JArrayProtoInt32 = makeObjectPrototype(Int32Array.prototype);
+	var JArrayProtoFloat32 = makeObjectPrototype(Float32Array.prototype);
+	var JArrayProtoFloat64 = makeObjectPrototype(Float64Array.prototype);
+	var JStringProto = makeStringPrototype(Object.prototype);
 
 	jvm.newArray = function (componentKlass, count) {
-		var value = new Array(count);
-		var arrObj = jvm.newArrayFromValue(componentKlass, value);
-		if (componentKlass == jvm.loadClass('I')) {
-			for (var i = 0; i < count; i++) {
-				arrObj[i] = 0;
-			}
+		var value;
+		switch(componentKlass.descriptor){
+			case "Z": 
+				value = new Uint8Array(count);
+				value.__proto__ = JArrayProtoUint8;
+				break;
+			case "B": 
+				value = new Int8Array(count);
+				value.__proto__ = JArrayProtoInt8;
+				break;
+			case "F":
+				value = new Float32Array(count); 
+				value.__proto__ = JArrayProtoFloat32;
+				break;
+			case "D": 
+				value = new Float64Array(count); 
+				value.__proto__ = JArrayProtoFloat64;
+				break;
+			case "C": 
+				value = new Uint16Array(count); 
+				value.__proto__ = JArrayProtoUint16;
+				break;
+			case "S":
+				value = new Int16Array(count); 
+				value.__proto__ = JArrayProtoInt16;
+				break;
+			case "I": 
+				value = new Int32Array(count); 
+				value.__proto__ = JArrayProtoInt32;
+				break;
+			default:
+				value = new Array(count);
+				value.__proto__ = JArrayProto;
+				break;
 		}
-		if (componentKlass == jvm.loadClass('J')) {
-			for (var i = 0; i < count; i++) {
-				arrObj[i] = Long.fromNumber(0);
-			}
-		}
-		return arrObj;
-	}
-
-	jvm.newArrayFromValue = function (componentKlass, value) {
-		value.__proto__ = JArrayProto;
 		var klass = jvm.loadClass('[' + componentKlass.descriptor);
 		value[".metadata"] = {
 			componentKlass: componentKlass,
 			klass: klass
 		};
+		if (componentKlass.descriptor === 'I') {
+			for (var i = 0; i < count; i++) {
+				value[i] = 0;
+			}
+		}
+		if (componentKlass.descriptor === 'J') {
+			for (var i = 0; i < count; i++) {
+				value[i] = Long.fromNumber(0);
+			}
+		}
 		return value;
 	}
 
@@ -589,7 +609,7 @@ var jvm = {};
 			klassName: 'java/lang/String',
 			klass: strKlass
 		}
-		var value = new Uint16Array(str.length);
+		var value = jvm.newArray(jvm.loadClass('C'), str.length);
 		for (var i = 0; i < str.length; ++i) {
 			value[i] = str.charCodeAt(i);
 		}
@@ -632,7 +652,7 @@ var jvm = {};
 		return obj;
 	};
 
-	function makeCommonPrototype(baseProto) {
+	function makeObjectPrototype(baseProto) {
 		var protoObj = { __proto__: baseProto };
 		protoObj.setMetadata = function (key, value) {
 			this[".metadata"][key] = value;
@@ -657,6 +677,30 @@ var jvm = {};
 			this[fieldName] = val;
 		}
 
+		return protoObj;
+	}
+
+	function makeArrayPrototype(baseProto){
+		var protoObj = makeObjectPrototype(baseProto);
+		protoObj.getComponentKlass = function () {
+			return this[".metadata"].componentKlass;
+		}
+		return protoObj;
+	}
+
+	function makeStringPrototype(baseProto){
+		var protoObj = makeObjectPrototype(baseProto);
+		protoObj.toString = function () {
+			if (!('nativeString' in this)) {
+				var charArrValue = this.value;
+				var chars = new Array(charArrValue.length);
+				for (var i = 0; i < charArrValue.length; ++i) {
+					chars[i] = String.fromCharCode(charArrValue[i]);
+				}
+				this.nativeString = chars.join('');
+			}
+			return this.nativeString;
+		}
 		return protoObj;
 	}
 
