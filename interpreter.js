@@ -54,13 +54,14 @@ jvm.interpreter = {};
 		return t;
 	};
 
-	this.invokeFirst = function (nextKlass, nextMethod, nextLocals) {
+	this.invokeFirst = function (nextKlass, nextMethod, nextLocals, callback) {
 		// doNotYieldLock++;
 		this.invoke(nextKlass, nextMethod, nextLocals || []);
 		frame.doReturn = true;
+		frame.onReturn = callback;
 		this.resume();
 		// doNotYieldLock--;
-		done = false;
+		// done = false;
 	};
 
 	this.invoke = function (nextKlass, nextMethod, nextLocals) {
@@ -98,6 +99,7 @@ jvm.interpreter = {};
 		if (ret !== undefined) {
 			stack.push(ret);
 		}
+
 	}
 
 	this.halt = function () {
@@ -207,6 +209,11 @@ jvm.interpreter = {};
 		if (thisframe.doReturn) {
 			thisframe.doReturn = false;
 			done = true;
+			if (thisframe.onReturn) {
+				setTimeout(() => {
+					thisframe.onReturn(thisframe);
+				}, 0);
+			}
 		}
 		if (frames.length == 0) {
 			// Thread is done.. remove it from threads.
@@ -261,35 +268,36 @@ jvm.interpreter = {};
 		}
 		var opsuntilyield = 20000;
 		while (!done) {
+			//console.log(klass.name + '.' + method.name + ': ' + (pos - offset))
 			frame.pc = pos - offset;
 			if (opsuntilyield-- < 0) {
 				opsuntilyield = 20000;
 				this.yield();
 			}
-			if (this.currentThread.__thrown !== undefined) {
-				var found = false;
-				for (var j = 0; j < method.exception_handlers.length; j++) {
-					var handler = method.exception_handlers[j];
-					var pc = pos - offset;
-					if (pc < handler.start_pc || pc > handler.end_pc) {
-						continue;
-					}
-					if (handler.catch_type) {
-						var catchklass = jvm.loadClass(handler.catch_type);
-						if (!this.currentThread.__thrown.getKlass().isSubClassOf(catchklass)) continue;
-					}
-					//catched
-					stack = [this.currentThread.__thrown];
-					pos = offset + handler.handler_pc;
-					found = true;
-					this.currentThread.__thrown = undefined;
-					break;
-				}
-				if (!found) {
-					doReturn(__nothing);
-					continue;
-				}
-			}
+			// if (this.currentThread.__thrown !== undefined) {
+			// 	var found = false;
+			// 	for (var j = 0; j < method.exception_handlers.length; j++) {
+			// 		var handler = method.exception_handlers[j];
+			// 		var pc = pos - offset;
+			// 		if (pc < handler.start_pc || pc > handler.end_pc) {
+			// 			continue;
+			// 		}
+			// 		if (handler.catch_type) {
+			// 			var catchklass = jvm.loadClass(handler.catch_type);
+			// 			if (!this.currentThread.__thrown.getKlass().isSubClassOf(catchklass)) continue;
+			// 		}
+			// 		//catched
+			// 		stack = [this.currentThread.__thrown];
+			// 		pos = offset + handler.handler_pc;
+			// 		found = true;
+			// 		this.currentThread.__thrown = undefined;
+			// 		break;
+			// 	}
+			// 	if (!found) {
+			// 		doReturn(__nothing);
+			// 		continue;
+			// 	}
+			// }
 
 			var instr = bytes[pos++];
 			switch (instr) {
@@ -339,20 +347,31 @@ jvm.interpreter = {};
 						idx = u2();
 					}
 					var type = klass.constant_pool_types[idx];
+					var that = this;
 					switch (type) {
 						case 1: // utf-8
 							debugger;
 						case 8: // String
 							var strInfo = cp[idx];
 							if (typeof strInfo == 'number') { //最初是utf8引用，初始化后变为jvm.stringPool字符串常量池中对象的引用
-								strInfo = cp[idx] = jvm.newInternedString(cp[strInfo]); // interned
+								jvm.newInternedString(cp[strInfo], function (strObj) {
+									cp[idx] = strObj;
+									stack.push(strObj);
+									that.resume();
+								}); // interned
+								return;
 							}
 							stack.push(strInfo);
 							break;
 						case 7: // Class
 							var cls = cp[cp[idx]];
-							stack.push(jvm.getClassObject(jvm.loadClass(cls)));
-							break;
+							jvm.loadClass(cls, function (klass) {
+								jvm.getClassObject(klass, function (obj) {
+									stack.push(obj);
+									that.resume();
+								});
+							});
+							return;
 						default:
 							stack.push(cp[idx]);
 							break;
@@ -810,22 +829,24 @@ jvm.interpreter = {};
 					var fielddesc = cp[u2()];
 					var fieldname = cp[cp[fielddesc.name_and_type_index].name_index];
 					var clsName = cp[cp[fielddesc.class_index]];
-					var clz = jvm.loadClass(clsName);
-					if (!(fieldname in clz.fields)) {
-						while (clz.superClass) {
-							clz = jvm.loadClass(clz.superClass);
-							if (fieldname in clz.fields) {
-								break;
+					var that = this;
+					jvm.loadClass(clsName, function (klass) {
+						if (!(fieldname in klass.fields)) {
+							while (klass.superClass) {
+								klass = jvm.getLoadedClass(klass.superClass);
+								if (fieldname in klass.fields) {
+									break;
+								}
 							}
 						}
-					}
-					var val = clz.fields[fieldname].static_value;
-					if (val === undefined) {
-						val = this.getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
-					}
-					stack.push(val);
-					break;
-
+						var val = klass.fields[fieldname].static_value;
+						if (val === undefined) {
+							val = this.getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
+						}
+						stack.push(val);
+						that.resume();
+					});
+					return;
 				case 180: // getfield
 					var fielddesc = cp[u2()];
 					var fieldname = cp[cp[fielddesc.name_and_type_index].name_index];
@@ -847,20 +868,27 @@ jvm.interpreter = {};
 					var fielddesc = cp[u2()];
 					var fieldname = cp[cp[fielddesc.name_and_type_index].name_index]
 					var cls = cp[cp[fielddesc.class_index]];
-					var clz = jvm.loadClass(cls);
-					while (!clz.fields[fieldname] && clz.superClass) {
-						clz = jvm.loadClass(clz.superClass);
-					}
-					clz.fields[fieldname].static_value = value;
-					break;
+					var that = this;
+					jvm.loadClass(cls, function (klass) {
+						while (!klass.fields[fieldname] && klass.superClass) {
+							klass = jvm.getLoadedClass(klass.superClass);
+						}
+						klass.fields[fieldname].static_value = value;
+						that.resume();
+					});
+					return;
 				case 181: // putfield
 					var value = stack.pop();
 					var jObj = stack.pop();
 					var fielddesc = cp[u2()];
 					if (!jObj) {
 						debugger;
-						this.currentThread.__thrown = jvm.newInstance("java/lang/NullPointerException");
-						break;
+						var that = this;
+						jvm.newInstance("java/lang/NullPointerException", function (obj) {
+							that.currentThread.__thrown = obj;
+							that.resume();
+						});
+						return;
 					}
 					jObj.setField(cp[cp[fielddesc.name_and_type_index].name_index], value);
 					break;
@@ -869,135 +897,149 @@ jvm.interpreter = {};
 				case 184: // invokestatic
 				case 185: // invokeinterface
 					var methoddesc = cp[u2()];
-					if (instr == 185) {
+					if (instr == 185) { //invokeinterface
 						u2();
 					}
 					var newlocals = [];
 					var nameandtype = cp[methoddesc.name_and_type_index];
 					var className = cp[cp[methoddesc.class_index]];
 					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
-					var nextKlass = jvm.loadClass(className);
-					if (!nextKlass) {
-						break;
-					}
-					var nextMethod = nextKlass.methods[nextMethodName];
-					// console.log(className + '.' + nextMethodName);
-					while (!nextMethod) {
-						var interfaceList = nextKlass.interfaces;
-						function scanInterfaces(interfaces) {
-							for (var i = 0; i < interfaces.length && !nextMethod; i++) {
-								var intf = jvm.loadClass(interfaces[i]);
-								nextMethod = intf.methods[nextMethodName];
-								if (nextMethod) {
-									return nextMethod;
-								}
-								if (intf.interfaces.length) {
-									nextMethod = scanInterfaces(intf.interfaces);
+					jvm.loadClass(className, findMethod);
+					var that = this;
+					return;
+
+					function findMethod(nextKlass) {
+						if (!nextKlass) {
+							debugger;
+						}
+						var nextMethod = nextKlass.methods[nextMethodName];
+						console.log(className + '.' + nextMethodName);
+						while (!nextMethod) {
+							var interfaceList = nextKlass.interfaces;
+							function scanInterfaces(interfaces) {
+								for (var i = 0; i < interfaces.length && !nextMethod; i++) {
+									var intf = jvm.loadClass(interfaces[i]);
+									nextMethod = intf.methods[nextMethodName];
 									if (nextMethod) {
 										return nextMethod;
 									}
+									if (intf.interfaces.length) {
+										nextMethod = scanInterfaces(intf.interfaces);
+										if (nextMethod) {
+											return nextMethod;
+										}
+									}
 								}
 							}
-						}
-						if (interfaceList.length) {
-							nextMethod = scanInterfaces(interfaceList);
-						}
-						if (nextMethod || !nextKlass.superClass) {
-							break;
-						}
-						nextKlass = jvm.loadClass(nextKlass.superClass);
-						nextMethod = nextKlass.methods[nextMethodName];
-					}
-					var objectref = null;
-					if (!nextMethod) debugger;
-
-					for (var i = nextMethod.paramTypes.length - 1; i >= 0; i--) {
-						if (nextMethod.paramTypes[i] == 'J' || nextMethod.paramTypes[i] == 'D') {
-							newlocals.unshift(null);
-							newlocals.unshift(stack.pop());
-						} else {
-							newlocals.unshift(stack.pop());
-						}
-					}
-					if (instr != 184) { //invokestatic
-						objectref = stack.pop();
-						newlocals.unshift(objectref); // objectref
-						if (newlocals[0] === null || newlocals[0] === undefined) {
-							debugger;
-							var ex = jvm.newInstance("java/lang/NullPointerException");
-							ex.thrownClass = klass.name;
-							ex.thrownMethod = method.name;
-							this.currentThread.__thrown = ex;
-							break;
-						}
-					}
-
-					if (instr == 182) { // invokevirtual
-						nextKlass = objectref.getKlass();
-						nextMethod = nextKlass.methods[nextMethodName];
-						while (!nextMethod) {
-							if (!nextKlass.superClass) {
+							if (interfaceList.length) {
+								nextMethod = scanInterfaces(interfaceList);
+							}
+							if (nextMethod || !nextKlass.superClass) {
 								break;
 							}
-							nextKlass = jvm.loadClass(nextKlass.superClass);
+							nextKlass = jvm.getLoadedClass(nextKlass.superClass);
 							nextMethod = nextKlass.methods[nextMethodName];
 						}
 					}
 
-					if (instr == 185) {
-						// interface. Fetch real class from objectref
-						nextKlass = newlocals[0].getKlass();
-						if (!nextKlass) {
-							debugger;
-							if (typeof newlocals[0] == 'string') {
-								debugger;
-								//nextKlass = jvm.loadClass("java/lang/String");
+					function resolveParams() {
+						var objectref = null;
+						if (!nextMethod) debugger;
+
+						for (var i = nextMethod.paramTypes.length - 1; i >= 0; i--) {
+							if (nextMethod.paramTypes[i] == 'J' || nextMethod.paramTypes[i] == 'D') {
+								newlocals.unshift(null);
+								newlocals.unshift(stack.pop());
+							} else {
+								newlocals.unshift(stack.pop());
 							}
 						}
-						nextMethod = nextKlass.methods[nextMethodName];
-						while (!nextMethod && nextKlass.superClass) {
-							nextKlass = jvm.loadClass(nextKlass.superClass);
+						if (instr != 184) { //invokestatic
+							objectref = stack.pop();
+							newlocals.unshift(objectref); // objectref
+							if (newlocals[0] === null || newlocals[0] === undefined) {
+								debugger;
+								jvm.newInstance("java/lang/NullPointerException", function (ex) {
+									ex.thrownClass = klass.name;
+									ex.thrownMethod = method.name;
+									that.currentThread.__thrown = ex;
+									that.resume();
+								});
+								return;
+							}
+						}
+
+						if (instr == 182) { // invokevirtual
+							nextKlass = objectref.getKlass();
 							nextMethod = nextKlass.methods[nextMethodName];
+							while (!nextMethod) {
+								if (!nextKlass.superClass) {
+									break;
+								}
+								nextKlass = jvm.getLoadedClass(nextKlass.superClass);
+								nextMethod = nextKlass.methods[nextMethodName];
+							}
+						}
+
+						if (instr == 185) { //invokeinterface
+							// interface. Fetch real class from objectref
+							nextKlass = newlocals[0].getKlass();
+							if (!nextKlass) {
+								debugger;
+							}
+							nextMethod = nextKlass.methods[nextMethodName];
+							while (!nextMethod && nextKlass.superClass) {
+								nextKlass = jvm.getLoadedClass(nextKlass.superClass);
+								nextMethod = nextKlass.methods[nextMethodName];
+							}
 						}
 					}
-					//				console.log(nextKlass.name + ": " + nextMethodName + ": " + (newlocals))
-					if (nextMethod.codepos == -1) {
-						// native
-						var fqn = nextKlass.name + "." + nextMethodName;
-						if (!jvm.nativemethods[fqn]) {
-							throw "No implementation for native method " + fqn;
+
+					function makeInvoke() {
+						if (nextMethod.codepos == -1) {
+							// native
+							var fqn = nextKlass.name + "." + nextMethodName;
+							if (!jvm.nativemethods[fqn]) {
+								throw "No implementation for native method " + fqn;
+							}
+							that.invokeNative(jvm.nativemethods[fqn], newlocals);
+						} else {
+							that.invoke(nextKlass, nextMethod, newlocals);
 						}
-						this.invokeNative(jvm.nativemethods[fqn], newlocals);
-					} else {
-						this.invoke(nextKlass, nextMethod, newlocals);
+						that.resume();
 					}
-					break;
 				case 187: // new
 					var cls = cp[cp[u2()]];
-					stack.push(jvm.newInstance(cls));
-					break;
+					jvm.newInstance(cls, function (obj) {
+						stack.push(obj);
+						jvm.interpreter.resume();
+					});
+					return;
 				case 188: // newarray
 					var count = stack.pop();
 					var type = bytes[pos++];
-					var clzs = {
-						4: jvm.loadClass('Z'),
-						5: jvm.loadClass('C'),
-						6: jvm.loadClass('F'),
-						7: jvm.loadClass('D'),
-						8: jvm.loadClass('B'),
-						9: jvm.loadClass('S'),
-						10: jvm.loadClass('I'),
-						11: jvm.loadClass('J')
-					}
-					var componentKlass = clzs[type];
-					stack.push(jvm.newArray(componentKlass, count));
-					break;
+					var descriptor = {
+						4: 'Z', 5: 'C', 6: 'F', 7: 'D',
+						8: 'B', 9: 'S', 10: 'I', 11: 'J'
+					}[type];
+					var componentKlass = jvm.getLoadedClass(descriptor);
+					var that = this;
+					jvm.newArray(componentKlass, count, function (arr) {
+						stack.push(arr);
+						that.resume();
+					});
+					return;
 				case 189: // anewarray
 					var count = stack.pop();
 					cls = cp[cp[u2()]];
-					var componentKlass = jvm.loadClass(cls);
-					stack.push(jvm.newArray(componentKlass, count));
-					break;
+					var that = this;
+					jvm.loadClass(cls, function (componentKlass) {
+						jvm.newArray(componentKlass, count, function (arr) {
+							stack.push(arr);
+							that.resume();
+						});
+					});
+					return;
 				case 190: // arraylength
 					stack.push(stack.pop().length);
 					break;
@@ -1012,10 +1054,14 @@ jvm.interpreter = {};
 					var cls = cp[cp[u2()]];
 					if (objectref === null) {
 						stack.push(false);
-					} else {
-						stack.push(objectref.getKlass().isSubClassOf(jvm.loadClass(cls)));
+						break;
 					}
-					break;
+					var that = this;
+					jvm.loadClass(cls, function (klass) {
+						stack.push(objectref.getKlass().isSubClassOf(klass));
+						that.resume();
+					});
+					return;
 				case 194: //monitorenter
 					this.monitorEnter(stack.pop());
 					break;
@@ -1038,28 +1084,32 @@ jvm.interpreter = {};
 					for (var i = 0; i < dimensions; ++i) {
 						counts.unshift(stack.pop());
 					}
-
-					var arrayobject = jvm.newArray(jvm.loadClass(cls), counts[0]);
-					var curArray = arrayobject;
-					for (var i = 0; i < dimensions - 1; ++i) { //当前第几层，创建下一层数组并链接到本层
-						var firstLowerArray = null, curLowerArray = null, lastLowerArray = null;
-						var dimensionKlass = jvm.loadClass(cls.substring(i + 1));
-						do { //当前数组是否还有下一个兄弟
-							for (var j = 0; j < counts[i]; ++j) { //创建下一层数组，并链接到当前层数组
-								curLowerArray = jvm.newArray(dimensionKlass, counts[i + 1]);
-								curArray[j] = curLowerArray;
-								if (j == 0) {
-									if (!firstLowerArray) firstLowerArray = curLowerArray;
+					var elementDescriptor = cls.substring(dimensions);
+					var that = this;
+					jvm.loadClass(elementDescriptor, function () { //预先异步加载元素类型，使得后面的逻辑可以同步进行
+						var arrayobject = jvm.newArraySync(jvm.getLoadedClass(cls), counts[0]);
+						var curArray = arrayobject;
+						for (var i = 0; i < dimensions - 1; ++i) { //当前第几层，创建下一层数组并链接到本层
+							var firstLowerArray = null, curLowerArray = null, lastLowerArray = null;
+							var dimensionKlass = jvm.getLoadedClass(cls.substring(i + 1));
+							do { //当前数组是否还有下一个兄弟
+								for (var j = 0; j < counts[i]; ++j) { //创建下一层数组，并链接到当前层数组
+									curLowerArray = jvm.newArraySync(dimensionKlass, counts[i + 1]);
+									curArray[j] = curLowerArray;
+									if (j == 0) {
+										if (!firstLowerArray) firstLowerArray = curLowerArray;
+									}
+									if (lastLowerArray) lastLowerArray.setMetadata("nextSibling", curLowerArray);
+									lastLowerArray = curLowerArray;
 								}
-								if (lastLowerArray) lastLowerArray.setMetadata("nextSibling", curLowerArray);
-								lastLowerArray = curLowerArray;
-							}
-						} while (curArray = curArray.getMetadata("nextSibling"));
-						curArray = firstLowerArray;
-						firstLowerArray = null;
-					}
-					stack.push(arrayobject);
-					break;
+							} while (curArray = curArray.getMetadata("nextSibling"));
+							curArray = firstLowerArray;
+							firstLowerArray = null;
+						}
+						stack.push(arrayobject);
+						that.resume();
+					});
+					return;
 				case 198: // ifnull
 				case 199: // ifnonnull
 					var branch = sint();

@@ -17,8 +17,9 @@
     <script>
     
 function run(){
-    var cls = jvm.loadClass('Main');
-    jvm.interpreter.invokeFirst(cls, cls.methods['main([Ljava/lang/String;)V'])
+    var cls = jvm.loadClass('Main', function(klass){
+        jvm.interpreter.invokeFirst(klass, klass.methods['main([Ljava/lang/String;)V'])
+    });
 }
 
     </script>
