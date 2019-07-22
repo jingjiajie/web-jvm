@@ -86,12 +86,15 @@ var jvm = {};
 			return;
 		}
 
+		console.log("loading class: "+ descriptor)
+
 		jvm.loadClassFile(descriptor, loadSuperClass);
 		return;
 
 		function loadSuperClass(kls) {
 			if (kls.superClass) {
 				jvm.loadClass(kls.superClass, initClass.bind(this, kls));
+				return;
 			} else {
 				initClass(kls);
 			}
@@ -100,6 +103,7 @@ var jvm = {};
 		function initClass(kls) {
 			if (kls.methods["<clinit>()V"]) {
 				jvm.interpreter.invokeFirst(kls, kls.methods["<clinit>()V"], null, cacheClass.bind(this, kls));
+				return;
 			} else {
 				cacheClass(kls);
 			}
@@ -108,7 +112,8 @@ var jvm = {};
 		function cacheClass(kls) {
 			jvm.klasses[descriptor] = kls;
 			if (kls.onInitFinish) {
-				kls.onInitFinish();
+				kls.onInitFinish(callback.bind(this, kls));
+				return;
 			}
 			callback(kls);
 		}

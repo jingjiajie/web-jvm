@@ -1,11 +1,11 @@
 jvm.nativemethods = {};
 
-jvm.nativemethods["javascript/Console.log(Ljava/lang/Object;)V"] = function(obj, callback) {
+jvm.nativemethods["javascript/Console.log(Ljava/lang/Object;)V"] = function (obj, callback) {
 	console.log(obj);
 	callback();
 }
 
-jvm.nativemethods["javascript/Console.log(Ljava/lang/String;)V"] = function(str, callback) {
+jvm.nativemethods["javascript/Console.log(Ljava/lang/String;)V"] = function (str, callback) {
 	console.log(str.toString());
 	callback();
 }
@@ -14,7 +14,7 @@ jvm.nativemethods["javascript/Console.log(Ljava/lang/String;)V"] = function(str,
 // 	console.log(c);
 // }
 
-jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
+jvm.nativemethods["javascript/Console.log(I)V"] = function (val, callback) {
 	console.log(val);
 	callback();
 }
@@ -58,7 +58,7 @@ jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
 // 	// Release the monitor
 // 	thread.oldMonitorCount = me.monitorCount;
 // 	thread.waitFor = me;
-	
+
 // 	var nextThread = me.waiters[0];
 // 	if (all) {
 // 		for(var i = 0; i < me.waiters.length; i++) {
@@ -70,7 +70,7 @@ jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
 // 	me.monitor = null;
 // //		me.monitor = nextThread;
 // //		me.monitorCount = nextThread.oldMonitorCount;
-	
+
 // 	jvm.interpreter.yield();
 // }
 
@@ -97,12 +97,12 @@ jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
 // 	thread.sleeping = true;
 // 	thread.waitFor = me;
 // 	thread.oldMonitorCount = me.monitorCount;
-	
+
 // 	// release the monitor
 // 	me.monitor = null;
 // 	me.monitorCount = 0;
 // 	jvm.interpreter.yield();
-	
+
 // 	if (timeoutmillis > 0) {
 // 		window.setTimeout(function() {
 // 			thread.sleeping = false;
@@ -111,7 +111,7 @@ jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
 // 	}
 // }
 
-jvm.nativemethods["java/lang/Object.registerNatives()V"] = function(callback) {
+jvm.nativemethods["java/lang/Object.registerNatives()V"] = function (callback) {
 	callback();
 }
 
@@ -149,7 +149,7 @@ jvm.nativemethods["java/lang/Object.registerNatives()V"] = function(callback) {
 // }
 
 // Class
-jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
+jvm.nativemethods["java/lang/Class.registerNatives()V"] = function (callback) {
 	callback();
 }
 
@@ -207,10 +207,10 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
 // 		m.setField("name", jvm.newInternedString(method.name));
 // 		m.setField("modifiers", method.access_flags);
 // 		m.setField("clazz", me);
-		
+
 // 		var exceptionTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 // 		m.setField("exceptionTypes", exceptionTypes);
-		
+
 // 		var parameterTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 // 		for(var i = 0; i < method.paramTypes.length; i++) {
 // 			var type = method.paramTypes[i];
@@ -236,10 +236,10 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
 // 		m.setField("name", jvm.newInternedString(method.name));
 // 		m.setField("clazz", me);
 // 		m.setField("returnType", method.returnType ? jvm.getClassObject(method.returnType) : null);
-		
+
 // 		var exceptionTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 // 		m.setField("exceptionTypes", exceptionTypes);
-		
+
 // 		var parameterTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
 // 		for(var i = 0; i < method.paramTypes.length; i++) {
 // 			var type = method.paramTypes[i];
@@ -281,22 +281,22 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
 // 	return array;
 // }
 
-// jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;"] = function(str) {
-// 	var descriptor;
-// 	switch(str.toString()){
-// 		case 'void': descriptor = 'V'; break;
-// 		case "boolean": descriptor = 'Z'; break;
-// 		case "char": descriptor = 'C'; break;
-// 		case "float": descriptor = 'F'; break;
-// 		case "double": descriptor = 'D'; break;
-// 		case "byte": descriptor = 'B'; break;
-// 		case "short": descriptor = 'S'; break;
-// 		case "int": descriptor = 'I'; break;
-// 		case "long": descriptor = 'J'; break;
-// 		default: throw 'unknown primitive: ' + str.toString();
-// 	}
-// 	return jvm.getClassObject(descriptor);
-// }
+jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;"] = function (str, callback) {
+	var descriptor;
+	switch (str.toString()) {
+		case 'void': descriptor = 'V'; break;
+		case "boolean": descriptor = 'Z'; break;
+		case "char": descriptor = 'C'; break;
+		case "float": descriptor = 'F'; break;
+		case "double": descriptor = 'D'; break;
+		case "byte": descriptor = 'B'; break;
+		case "short": descriptor = 'S'; break;
+		case "int": descriptor = 'I'; break;
+		case "long": descriptor = 'J'; break;
+		default: throw 'unknown primitive: ' + str.toString();
+	}
+	jvm.getClassObject(descriptor, callback);
+}
 
 // jvm.nativemethods["java/lang/Class.getComponentType()Ljava/lang/Class;"] = function(me) {
 // 	if(me.getMetadata("targetKlass").descriptor[0] != '[') return null;
@@ -376,7 +376,7 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
 // jvm.nativemethods["sun/misc/Unsafe.staticFieldBase(Ljava/lang/reflect/Field;)Ljava/lang/Object;"] = function() {
 // 	return null;
 // }
-	
+
 // jvm.nativemethods["sun/misc/Unsafe.arrayIndexScale(Ljava/lang/Class;)I"] = function() {
 // 	return 1;
 // }
@@ -507,7 +507,7 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
 // 	jvm.loadClass("java/lang/System").fields["err"].static_value = it;
 // }
 
-jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = function(it, callback) {
+jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = function (it, callback) {
 	if (!it.hashCode) {
 		it.hashCode = (123498172123123 * jvm.hashcounter++) % 0xFFFFFFFF;
 	}
@@ -526,34 +526,50 @@ jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = fu
 // 	return Long.fromNumber(1);
 // }
 
-// jvm.nativemethods["java/lang/System.initProperties(Ljava/util/Properties;)Ljava/util/Properties;"] = function(props) {
-// 	function setProperty(name, value) {
-// 		name = jvm.newString(name);
-// 		value = jvm.newString(value);
-// 		jvm.interpreter.invokeFirst(props.getKlass(), props.getKlass().methods["setProperty(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;"], [props, name, value]);
-// 	}
-// 	setProperty("os.name", "Mac OS X");
-// 	setProperty("file.separator", "/");
-// 	setProperty("java.home", "/JAVA_HOME");
-// 	setProperty("sun.boot.class.path", "/bin");
-// 	setProperty("user.dir", "/USER_DIR");
-// 	setProperty("user.home", "/USER_HOME");
-// 	setProperty("java.io.tmpdir", "/TMP");
-// 	setProperty("user.country", "US");
-// 	setProperty("sun.io.useCanonCaches", "false");
-// 	setProperty("sun.io.useCanonPrefixCache", "false");
-// 	setProperty("java.library.path", "/");
-// 	setProperty("sun.boot.library.path", "/");
-// 	setProperty("file.encoding", "UTF-8");
-// 	setProperty("line.separator", "\n");
-// 	return props;
-// }
+jvm.nativemethods["java/lang/System.initProperties(Ljava/util/Properties;)Ljava/util/Properties;"] = function (props, callback) {
+	function setProperties(nameAndValues, theCallback) {
+		if (nameAndValues.length == 0) {
+			setTimeout(() => {
+				theCallback();
+			}, 0);
+			return;
+		}
+		var len = nameAndValues.length;
+		var name = nameAndValues[len - 1].name;
+		var value = nameAndValues[len - 1].value;
+		jvm.newString(name, function (strObjName) {
+			jvm.newString(value, function (strObjValue) {
+				nameAndValues.pop();
+				jvm.interpreter.invokeFirst(props.getKlass(),
+					props.getKlass().methods["setProperty(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;"],
+					[props, name, value],
+					setProperties.bind(this, nameAndValues, theCallback));
+			});
+		});
+	}
+	setProperties(
+		[{ name: "os.name", value: "Mac OS X" },
+		{ name: "file.separator", value: "/" },
+		{ name: "java.home", value: "/JAVA_HOME" },
+		{ name: "sun.boot.class.path", value: "/bin" },
+		{ name: "user.dir", value: "/USER_DIR" },
+		{ name: "user.home", value: "/USER_HOME" },
+		{ name: "java.io.tmpdir", value: "/TMP" },
+		{ name: "user.country", value: "US" },
+		{ name: "sun.io.useCanonCaches", value: "false" },
+		{ name: "sun.io.useCanonPrefixCache", value: "false" },
+		{ name: "java.library.path", value: "/" },
+		{ name: "sun.boot.library.path", value: "/" },
+		{ name: "file.encoding", value: "UTF-8" },
+		{ name: "line.separator", value: "\n" }]
+		, callback.bind(this, props));
+}
 
 // System
-jvm.nativemethods["java/lang/System.registerNatives()V"] = function(callback) {
+jvm.nativemethods["java/lang/System.registerNatives()V"] = function (callback) {
 	var sysKlass = jvm.getLoadedClass('java/lang/System');
-	sysKlass.onInitFinish = function(){
-		jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"]);
+	sysKlass.onInitFinish = function (theCallback) {
+		jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"], function () { theCallback(); });
 	}
 	callback();
 }
@@ -562,22 +578,22 @@ jvm.nativemethods["java/lang/System.registerNatives()V"] = function(callback) {
 // 	return jvm.newString("awt");
 // }
 
-jvm.nativemethods["java/lang/System.currentTimeMillis()J"] = function(callback) {
+jvm.nativemethods["java/lang/System.currentTimeMillis()J"] = function (callback) {
 	callback(Long.fromNumber(new Date().getTime()));
 }
 
-jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
+jvm.nativemethods["java/lang/System.nanoTime()J"] = function (callback) {
 	callback(Long.fromNumber(new Date().getTime()));
 }
 
 // // Float
 // jvm.nativemethods["java/lang/Float.intBitsToFloat(I)F"] = function(b) {
-	
+
 // 	if (b == 0) return 0;
 // 	if (b == 0x7f800000) return Number.POSITIVE_INFINITY;
 // 	if (b == 0xff800000) return Number.NEGATIVE_INFINITY;
 // 	if ((b >= 0x7f800001 && b <= 0x7fffffff) || (b > 0xff800001 && b <= 0xffffffff)) return NaN;
-	
+
 // 	var s = ((b >> 31) == 0) ? 1 : -1;
 // 	var e = ((b >> 23) & 0xff);
 // 	var m = (e == 0) ?
@@ -586,31 +602,30 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 // 	return s * m * Math.pow(2, e - 150);
 // }
 
-// jvm.nativemethods["java/lang/Float.floatToRawIntBits(F)I"] = function(f) {
-// 	if (f == 0) return 0;
-// 	if (f == Number.POSITIVE_INFINITY) return 0x7f800000;
-// 	if (f == Number.NEGATIVE_INFINITY) return 0xff800000;
-// 	if (f == NaN) return 0x7fc00000;
-	
-// 	var exp = 150;
-	
-// 	var positive = f > 0;
-// 	if (!positive) {
-// 		f = -f;
-// 	}
-	
-// 	while(f > 0x800000) {
-// 		exp++;
-// 		f = f / 2;
-// 	}
-	
-// 	while (f <= 0x800000) {
-// 		exp --;
-// 		f = f * 2;
-// 	}
-	
-// 	return (positive ? 0 : 0x80000000) + (exp << 23) + Math.floor(f - 0x800000);
-// }
+jvm.nativemethods["java/lang/Float.floatToRawIntBits(F)I"] = function (f, callback) {
+	var result;
+	if (f == 0) result = 0;
+	else if (f == Number.POSITIVE_INFINITY) result = 0x7f800000;
+	else if (f == Number.NEGATIVE_INFINITY) result = 0xff800000;
+	else if (f == NaN) result = 0x7fc00000;
+	else {
+		var exp = 150;
+		var positive = f > 0;
+		if (!positive) {
+			f = -f;
+		}
+		while (f > 0x800000) {
+			exp++;
+			f = f / 2;
+		}
+		while (f <= 0x800000) {
+			exp--;
+			f = f * 2;
+		}
+		result = (positive ? 0 : 0x80000000) + (exp << 23) + Math.floor(f - 0x800000);
+	}
+	callback(result);
+}
 
 // // Double
 // jvm.nativemethods["java/lang/Double.longBitsToDouble(J)D"] = function(val) {
@@ -629,40 +644,34 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 // 	return s * m * Math.pow(2, e - 1043);
 // }
 
-// jvm.nativemethods["java/lang/Double.doubleToRawLongBits(D)J"] = function(d, d0) {
-// 	if (d == 0) {
-// 		return Long.fromNumber(0);
-// 	}
-// 	if (d == Number.POSITIVE_INFINITY) {
-// 		return new Long(0, 0x7ff00000);
-// 	}
-// 	if (d == Number.NEGATIVE_INFINITY) {
-// 		return new Long(0, 0xfff00000);
-// 	}
-// 	if (d == NaN) {
-// 		return new Long(0, 0x7ff80000);
-// 	}
-	
-// 	var exp = 1075;
-// 	var positive = d > 0;
-// 	if (!positive) {
-// 		d = -d;
-// 	}
-// 	while (d > 0x0010000000000000) {
-// 		exp ++;
-// 		d = d / 2;
-// 	}
-// 	while (d <= 0x0010000000000000) {
-// 		exp --;
-// 		d = d * 2;
-// 	}
-	
-// 	var l = Long.fromNumber(exp).shiftLeft(52).add(Long.fromNumber(d - 0x0010000000000000));
-// 	if (!positive) {
-// 		l.or(new Long(0, 0x8000000));
-// 	}
-// 	return l;
-// }
+jvm.nativemethods["java/lang/Double.doubleToRawLongBits(D)J"] = function (d, d0, callback) {
+	var result;
+	if (d == 0) result = Long.fromNumber(0);
+	else if (d == Number.POSITIVE_INFINITY) result = new Long(0, 0x7ff00000);
+	else if (d == Number.NEGATIVE_INFINITY) result = new Long(0, 0xfff00000);
+	else if (d == NaN) result = new Long(0, 0x7ff80000);
+	else {
+		var exp = 1075;
+		var positive = d > 0;
+		if (!positive) {
+			d = -d;
+		}
+		while (d > 0x0010000000000000) {
+			exp++;
+			d = d / 2;
+		}
+		while (d <= 0x0010000000000000) {
+			exp--;
+			d = d * 2;
+		}
+		var l = Long.fromNumber(exp).shiftLeft(52).add(Long.fromNumber(d - 0x0010000000000000));
+		if (!positive) {
+			l.or(new Long(0, 0x8000000));
+		}
+		result = l;
+	}
+	callback(result);
+}
 
 // jvm.nativemethods["java/lang/Throwable.getStackTraceElement(I)Ljava/lang/StackTraceElement;"] = function(me, index) {
 // 	var el = jvm.newInstance("java/lang/StackTraceElement");
@@ -703,9 +712,10 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 // 	return 1;
 // };
 
-// // VM
-// jvm.nativemethods["sun/misc/VM.initialize()V"] = function() {
-// }
+// VM
+jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
+	callback();
+}
 
 // jvm.nativemethods["sun/misc/VM.getThreadStateValues([[I[[Ljava/lang/String;)V"] = function(ints, strings) {
 // 	var index = 0;
@@ -714,11 +724,11 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 // 		var intval = jvm.newArray(jvm.loadClass('I'), 1);
 // 		intval[0] = stateint;
 // 		ints[index] = intval;
-		
+
 // 		var stringval = jvm.newArray(jvm.loadClass("java/lang/String"), 1);
 // 		stringval[0] = statename;
 // 		strings[index++] = stringval;
-		
+
 // 	}
 // 	var jvmstates = ["NEW", "RUNNABLE", "BLOCKED", "WAITING", "TIMED_WAITING", "TERMINATED"];
 // 	for(var i = 0; i < jvmstates.length; i++) {
@@ -808,10 +818,10 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 
 // jvm.nativemethods["java/lang/Thread.sleep(J)V"] = function(millis) {
 // 	var thread = jvm.interpreter.currentThread;
-	
+
 // 	thread.sleeping = true;
 // 	jvm.interpreter.yield();
-	
+
 // 	thread.sleeptimer = window.setTimeout(function() {
 // 		thread.sleeping = false;
 // 		jvm.interpreter.yield();
@@ -882,10 +892,10 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 
 // jvm.files = {
 // 		"/JAVA_HOME/lib/zi/Europe/Amsterdam": {
-			
+
 // 		},
 // 		"/JAVA_HOME/lib/zi/ZoneInfoMappings": {
-			
+
 // 		},
 // 		"/awt": {
 // 			isDirectory: true
@@ -897,12 +907,12 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
 // 			isDirectory: true
 // 		},
 // 		"/bin/jline/CandidateListCompletionHandler.properties": {
-			
+
 // 		},
 // 		"/bin/test.properties": {
 // 		},
 // 		"/USER_DIR/words.txt": {
-			
+
 // 		}
 // }
 
