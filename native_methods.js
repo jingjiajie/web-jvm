@@ -1,19 +1,22 @@
 jvm.nativemethods = {};
 
-jvm.nativemethods["javascript/Console.log(Ljava/lang/Object;)V"] = function(obj) {
+jvm.nativemethods["javascript/Console.log(Ljava/lang/Object;)V"] = function(obj, callback) {
 	console.log(obj);
+	callback();
 }
 
-jvm.nativemethods["javascript/Console.log(Ljava/lang/String;)V"] = function(str) {
+jvm.nativemethods["javascript/Console.log(Ljava/lang/String;)V"] = function(str, callback) {
 	console.log(str.toString());
+	callback();
 }
 
 // jvm.nativemethods["javascript/Console.log(C)V"] = function(c) {
 // 	console.log(c);
 // }
 
-jvm.nativemethods["javascript/Console.log(I)V"] = function(val) {
+jvm.nativemethods["javascript/Console.log(I)V"] = function(val, callback) {
 	console.log(val);
+	callback();
 }
 
 // jvm.nativemethods["javascript/Console.log(J)V"] = function(l) {
@@ -108,8 +111,8 @@ jvm.nativemethods["javascript/Console.log(I)V"] = function(val) {
 // 	}
 // }
 
-jvm.nativemethods["java/lang/Object.registerNatives()V"] = function(me) {
-	
+jvm.nativemethods["java/lang/Object.registerNatives()V"] = function(callback) {
+	callback();
 }
 
 // jvm.nativemethods["java/lang/Object.clone()Ljava/lang/Object;"] = function(me) {
@@ -146,7 +149,8 @@ jvm.nativemethods["java/lang/Object.registerNatives()V"] = function(me) {
 // }
 
 // Class
-jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(me) {
+jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(callback) {
+	callback();
 }
 
 // jvm.nativemethods["java/lang/Class.isInstance(Ljava/lang/Object;)Z"] = function(me, other) {
@@ -503,11 +507,11 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function(me) {
 // 	jvm.loadClass("java/lang/System").fields["err"].static_value = it;
 // }
 
-jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = function(it) {
+jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = function(it, callback) {
 	if (!it.hashCode) {
 		it.hashCode = (123498172123123 * jvm.hashcounter++) % 0xFFFFFFFF;
 	}
-	return it.hashCode;
+	callback(it.hashCode);
 }
 
 // // Signal
@@ -546,23 +550,24 @@ jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = fu
 // }
 
 // System
-jvm.nativemethods["java/lang/System.registerNatives()V"] = function() {
-	// var sysKlass = jvm.loadClass('java/lang/System');
-	// sysKlass.onInitFinish = function(){
-	// 	jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"]);
-	// }
+jvm.nativemethods["java/lang/System.registerNatives()V"] = function(callback) {
+	var sysKlass = jvm.getLoadedClass('java/lang/System');
+	sysKlass.onInitFinish = function(){
+		jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"]);
+	}
+	callback();
 }
 
 // jvm.nativemethods["java/lang/System.mapLibraryName(Ljava/lang/String;)Ljava/lang/String;"] = function(name) {
 // 	return jvm.newString("awt");
 // }
 
-jvm.nativemethods["java/lang/System.currentTimeMillis()J"] = function() {
-	return Long.fromNumber(new Date().getTime());
+jvm.nativemethods["java/lang/System.currentTimeMillis()J"] = function(callback) {
+	callback(Long.fromNumber(new Date().getTime()));
 }
 
-jvm.nativemethods["java/lang/System.nanoTime()J"] = function() {
-	return Long.fromNumber(new Date().getTime());
+jvm.nativemethods["java/lang/System.nanoTime()J"] = function(callback) {
+	callback(Long.fromNumber(new Date().getTime()));
 }
 
 // // Float
@@ -1017,7 +1022,7 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function() {
 // 				}
 // 			}
 // 			document.addEventListener('keypress', listener);
-// 			return jvm.interpreter.__block;
+// 			return jvm.interpreter.__block; //TODO: 处理这个，__block是什么鬼
 // 		} else {
 // 			for(var i = 0; i < keys.length && i < length; i++) {
 // 				targetarr[start + i] = keys.shift();
@@ -1080,10 +1085,10 @@ jvm.nativemethods["java/lang/System.nanoTime()J"] = function() {
 
 // // ProcessEnvironment
 // jvm.nativemethods["java/lang/ProcessEnvironment.environ()[[B"] = function() {
-// 	var arrayobject = this.newArray(jvm.getClassObject("[[B"), 0);
+// 	var arrayobject = jvm.newArray(jvm.getClassObject("[[B"), 0);
 // 	return arrayobject;
 // //	for(var i = 0; i < counts[0]; i++) {
-// //		arrayobject[i] = this.newArray(jvm.getClassObject(cls.substring(1)), counts[1]);
+// //		arrayobject[i] = jvm.newArray(jvm.getClassObject(cls.substring(1)), counts[1]);
 // //	}
 // };
 

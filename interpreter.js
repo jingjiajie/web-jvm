@@ -56,9 +56,14 @@ jvm.interpreter = {};
 
 	this.invokeFirst = function (nextKlass, nextMethod, nextLocals, callback) {
 		// doNotYieldLock++;
+		var frameCount = this.currentThread.frames.length;
+		var curFrame = frameCount > 0 ? this.currentThread.frames[frameCount-1] : null; 
 		this.invoke(nextKlass, nextMethod, nextLocals || []);
 		frame.doReturn = true;
-		frame.onReturn = callback;
+		frame.onReturn = function(){
+			if(curFrame) loadFrame(curFrame);
+			callback();
+		};
 		this.resume();
 		// doNotYieldLock--;
 		// done = false;
@@ -83,23 +88,31 @@ jvm.interpreter = {};
 		}
 	};
 
-	this.invokeNative = function (nativemethod, parameters) {
-		var ret = nativemethod.apply(this, parameters);
-		if (typeof ret == 'string') debugger; //string必须返回java的String对象，使用jvm.newString()创建
-		if (ret === this.__block) {
-			var me = this;
-			this.currentThread.onResume = function () {
-				me.invokeNative(nativemethod, parameters);
-			}
-			this.currentThread.sleeping = true;
-			this.halt();
-			this.yield();
-			return;
+	function invokeNativeAndPushReturnValue(klass, method, args, callback) {
+		var fullName = klass.name + "." + method.name + method.descriptor;
+		var nativeMethod;
+		if (!(nativeMethod = jvm.nativemethods[fullName])) {
+			throw "No implementation for native method " + fullName;
 		}
-		if (ret !== undefined) {
-			stack.push(ret);
-		}
+		args.push(myCallback);
+		nativeMethod.apply(this, args);
+		return;
 
+		function myCallback(ret){
+			// if (ret === that.__block) {
+			// 	that.currentThread.onResume = function () {
+			// 		that.invokeNativeAndPushReturnValue(nativemethod, args);
+			// 	}
+			// 	that.currentThread.sleeping = true;
+			// 	that.halt();
+			// 	that.yield();
+			// 	return;
+			// }
+			if (ret !== undefined) {
+				stack.push(ret);
+			}
+			callback();
+		}
 	}
 
 	this.halt = function () {
@@ -893,59 +906,63 @@ jvm.interpreter = {};
 					jObj.setField(cp[cp[fielddesc.name_and_type_index].name_index], value);
 					break;
 				case 182: // invokevirtual
-				case 183: // invokespecial
-				case 184: // invokestatic
-				case 185: // invokeinterface
 					var methoddesc = cp[u2()];
-					if (instr == 185) { //invokeinterface
-						u2();
-					}
-					var newlocals = [];
 					var nameandtype = cp[methoddesc.name_and_type_index];
 					var className = cp[cp[methoddesc.class_index]];
 					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
-					jvm.loadClass(className, findMethod);
 					var that = this;
-					return;
-
-					function findMethod(nextKlass) {
-						if (!nextKlass) {
-							debugger;
+					jvm.loadClass(className, function(nextKlass){
+						var newlocals = [];
+						var specialMethod = nextKlass.methods[nextMethodName]; /*这里获取方法只是为了知道参数个数，后面会重新动态绑定 */
+						for (var i = specialMethod.paramTypes.length - 1; i >= 0; i--) {
+							if (specialMethod.paramTypes[i] == 'J' || specialMethod.paramTypes[i] == 'D') {
+								newlocals.unshift(null);
+								newlocals.unshift(stack.pop());
+							} else {
+								newlocals.unshift(stack.pop());
+							}
 						}
+						var objectref = stack.pop();
+						newlocals.unshift(objectref); // objectref
+						if (objectref === null || objectref === undefined) {
+							debugger;
+							jvm.newInstance("java/lang/NullPointerException", function (ex) {
+								ex.thrownClass = klass.name;
+								ex.thrownMethod = method.name;
+								that.currentThread.__thrown = ex;
+								that.resume();
+							});
+							return;
+						}
+						/*重新动态绑定方法 */
+						nextKlass = objectref.getKlass();
 						var nextMethod = nextKlass.methods[nextMethodName];
-						console.log(className + '.' + nextMethodName);
 						while (!nextMethod) {
-							var interfaceList = nextKlass.interfaces;
-							function scanInterfaces(interfaces) {
-								for (var i = 0; i < interfaces.length && !nextMethod; i++) {
-									var intf = jvm.loadClass(interfaces[i]);
-									nextMethod = intf.methods[nextMethodName];
-									if (nextMethod) {
-										return nextMethod;
-									}
-									if (intf.interfaces.length) {
-										nextMethod = scanInterfaces(intf.interfaces);
-										if (nextMethod) {
-											return nextMethod;
-										}
-									}
-								}
-							}
-							if (interfaceList.length) {
-								nextMethod = scanInterfaces(interfaceList);
-							}
-							if (nextMethod || !nextKlass.superClass) {
-								break;
+							if (!nextKlass.superClass) {
+								throw 'Cannot find virtual method: ' + className + '.' + nextMethodName;;
 							}
 							nextKlass = jvm.getLoadedClass(nextKlass.superClass);
 							nextMethod = nextKlass.methods[nextMethodName];
 						}
-					}
-
-					function resolveParams() {
-						var objectref = null;
-						if (!nextMethod) debugger;
-
+						if (nextMethod.codepos == -1) {
+							invokeNativeAndPushReturnValue(nextKlass, nextMethod, newlocals, function(){
+								that.resume();
+							});
+							return;
+						}
+						that.invoke(nextKlass, nextMethod, newlocals);
+						that.resume();
+					});
+					return;
+				case 183: // invokespecial
+					var methoddesc = cp[u2()];
+					var nameandtype = cp[methoddesc.name_and_type_index];
+					var className = cp[cp[methoddesc.class_index]];
+					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
+					var that = this;
+					jvm.loadClass(className, function(nextKlass){
+						var newlocals = [];
+						var nextMethod = nextKlass.methods[nextMethodName];
 						for (var i = nextMethod.paramTypes.length - 1; i >= 0; i--) {
 							if (nextMethod.paramTypes[i] == 'J' || nextMethod.paramTypes[i] == 'D') {
 								newlocals.unshift(null);
@@ -954,60 +971,115 @@ jvm.interpreter = {};
 								newlocals.unshift(stack.pop());
 							}
 						}
-						if (instr != 184) { //invokestatic
-							objectref = stack.pop();
-							newlocals.unshift(objectref); // objectref
-							if (newlocals[0] === null || newlocals[0] === undefined) {
-								debugger;
-								jvm.newInstance("java/lang/NullPointerException", function (ex) {
-									ex.thrownClass = klass.name;
-									ex.thrownMethod = method.name;
-									that.currentThread.__thrown = ex;
-									that.resume();
-								});
-								return;
-							}
+						var objectref = stack.pop();
+						newlocals.unshift(objectref); // objectref
+						if (objectref === null || objectref === undefined) {
+							debugger;
+							jvm.newInstance("java/lang/NullPointerException", function (ex) {
+								ex.thrownClass = klass.name;
+								ex.thrownMethod = method.name;
+								that.currentThread.__thrown = ex;
+								that.resume();
+							});
+							return;
 						}
-
-						if (instr == 182) { // invokevirtual
-							nextKlass = objectref.getKlass();
-							nextMethod = nextKlass.methods[nextMethodName];
-							while (!nextMethod) {
-								if (!nextKlass.superClass) {
-									break;
-								}
-								nextKlass = jvm.getLoadedClass(nextKlass.superClass);
-								nextMethod = nextKlass.methods[nextMethodName];
-							}
-						}
-
-						if (instr == 185) { //invokeinterface
-							// interface. Fetch real class from objectref
-							nextKlass = newlocals[0].getKlass();
-							if (!nextKlass) {
-								debugger;
-							}
-							nextMethod = nextKlass.methods[nextMethodName];
-							while (!nextMethod && nextKlass.superClass) {
-								nextKlass = jvm.getLoadedClass(nextKlass.superClass);
-								nextMethod = nextKlass.methods[nextMethodName];
-							}
-						}
-					}
-
-					function makeInvoke() {
 						if (nextMethod.codepos == -1) {
-							// native
-							var fqn = nextKlass.name + "." + nextMethodName;
-							if (!jvm.nativemethods[fqn]) {
-								throw "No implementation for native method " + fqn;
-							}
-							that.invokeNative(jvm.nativemethods[fqn], newlocals);
-						} else {
-							that.invoke(nextKlass, nextMethod, newlocals);
+							invokeNativeAndPushReturnValue(nextKlass, nextMethod, newlocals, function(){
+								that.resume();
+							});
+							return;
 						}
+						that.invoke(nextKlass, nextMethod, newlocals);
 						that.resume();
-					}
+					});
+					return;
+				case 184: // invokestatic
+					var methoddesc = cp[u2()];
+					var nameandtype = cp[methoddesc.name_and_type_index];
+					var className = cp[cp[methoddesc.class_index]];
+					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
+					var that = this;
+					jvm.loadClass(className, function(nextKlass){
+						var newlocals = [];
+						var nextMethod = nextKlass.methods[nextMethodName];
+						/* 静态方法有可能在父类 */
+						while (!nextMethod) {
+							if (!nextKlass.superClass) {
+								throw 'Cannot find static method: ' + className + '.' + nextMethodName;
+							}
+							nextKlass = jvm.getLoadedClass(nextKlass.superClass);
+							nextMethod = nextKlass.methods[nextMethodName];
+						}
+						for (var i = nextMethod.paramTypes.length - 1; i >= 0; i--) {
+							if (nextMethod.paramTypes[i] == 'J' || nextMethod.paramTypes[i] == 'D') {
+								newlocals.unshift(null);
+								newlocals.unshift(stack.pop());
+							} else {
+								newlocals.unshift(stack.pop());
+							}
+						}
+
+						if (nextMethod.codepos == -1) {
+							invokeNativeAndPushReturnValue(nextKlass, nextMethod, newlocals, function(){
+								that.resume();
+							});
+							return;
+						}
+						that.invoke(nextKlass, nextMethod, newlocals);
+						that.resume();
+					});
+					return;
+				case 185: // invokeinterface
+					var methoddesc = cp[u2()];
+					var argCount = u1();
+					u1(); // 0
+					var nameandtype = cp[methoddesc.name_and_type_index];
+					var className = cp[cp[methoddesc.class_index]];
+					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
+					var that = this;
+					jvm.loadClass(className, function(nextKlass){
+						var newlocals = [];
+						var interfaceMethod = nextKlass.methods[nextMethodName]; /*这里获取方法只是为了知道参数个数，后面会重新动态绑定 */
+						for (var i = interfaceMethod.paramTypes.length - 1; i >= 0; i--) {
+							if (interfaceMethod.paramTypes[i] == 'J' || interfaceMethod.paramTypes[i] == 'D') {
+								newlocals.unshift(null);
+								newlocals.unshift(stack.pop());
+							} else {
+								newlocals.unshift(stack.pop());
+							}
+						}
+						var objectref = stack.pop();
+						newlocals.unshift(objectref); // objectref
+						if (objectref === null || objectref === undefined) {
+							debugger;
+							jvm.newInstance("java/lang/NullPointerException", function (ex) {
+								ex.thrownClass = klass.name;
+								ex.thrownMethod = method.name;
+								that.currentThread.__thrown = ex;
+								that.resume();
+							});
+							return;
+						}
+						/*重新动态绑定方法 */
+						nextKlass = objectref.getKlass();
+						var nextMethod = nextKlass.methods[nextMethodName];
+						while (!nextMethod) {
+							if (!nextKlass.superClass) {
+								throw 'Cannot find interface method: ' + className + '.' + nextMethodName;;
+							}
+							nextKlass = jvm.getLoadedClass(nextKlass.superClass);
+							nextMethod = nextKlass.methods[nextMethodName];
+						}
+						if (nextMethod.codepos == -1) {
+							invokeNativeAndPushReturnValue(nextKlass, nextMethod, newlocals, function(){
+								that.resume();
+							});
+							return;
+						}
+						that.invoke(nextKlass, nextMethod, newlocals);
+						that.resume();
+					});
+					return;
 				case 187: // new
 					var cls = cp[cp[u2()]];
 					jvm.newInstance(cls, function (obj) {

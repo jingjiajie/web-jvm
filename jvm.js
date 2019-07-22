@@ -89,28 +89,28 @@ var jvm = {};
 		jvm.loadClassFile(descriptor, loadSuperClass);
 		return;
 
-		function loadSuperClass(klass) {
-			if (klass.superClass) {
-				jvm.loadClass(klass.superClass, initClass.bind(this, klass));
+		function loadSuperClass(kls) {
+			if (kls.superClass) {
+				jvm.loadClass(kls.superClass, initClass.bind(this, kls));
 			} else {
-				initClass(klass);
+				initClass(kls);
 			}
 		}
 
-		function initClass(klass) {
-			if (klass.methods["<clinit>()V"]) {
-				jvm.interpreter.invokeFirst(klass, klass.methods["<clinit>()V"], null, cacheClass.bind(this, klass));
+		function initClass(kls) {
+			if (kls.methods["<clinit>()V"]) {
+				jvm.interpreter.invokeFirst(kls, kls.methods["<clinit>()V"], null, cacheClass.bind(this, kls));
 			} else {
-				cacheClass(klass);
+				cacheClass(kls);
 			}
 		}
 
-		function cacheClass(klass) {
-			jvm.klasses[descriptor] = klass;
-			if (klass.onInitFinish) {
-				klass.onInitFinish();
+		function cacheClass(kls) {
+			jvm.klasses[descriptor] = kls;
+			if (kls.onInitFinish) {
+				kls.onInitFinish();
 			}
-			callback(klass);
+			callback(kls);
 		}
 	}
 
