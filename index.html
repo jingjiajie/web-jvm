@@ -18,7 +18,11 @@
     
 function run(){
     var cls = jvm.loadClass('Main', function(klass){
-        jvm.interpreter.invokeFirst(klass, klass.methods['main([Ljava/lang/String;)V'])
+        jvm.loadClass('java/lang/String', function(){
+            jvm.loadClass('java/lang/Class', function(){
+               // jvm.interpreter.invokeFirst(klass, klass.methods['main([Ljava/lang/String;)V'], [], ()=>{})
+            });
+        });
     });
 }
 

@@ -61,7 +61,7 @@ var jvm = {};
 			}
 		} else {
 			for (var mySuperClass = null; me.superClass; me = mySuperKlass) {
-				mySuperKlass = jvm.loadClass(me.superClass);
+				mySuperKlass = jvm.getLoadedClass(me.superClass);
 				if (mySuperKlass == klass) return true;
 			}
 		}
@@ -451,25 +451,25 @@ var jvm = {};
 
 	jvm.getClassObject = function (klassOrDescriptor, callback) {
 		if (typeof klassOrDescriptor === 'string') {
-			jvm.loadClass(klassOrDescriptor, createClassObject);
-		} else {
-			createClassObject(klassOrDescriptor);
-		}
-		function createClassObject(klass) {
-			var key = klass.name;
-			if (jvm.classObjects[key]){
-				callback(jvm.classObjects[key]);
-				return;
-			}
-			jvm.newInstance("java/lang/Class", function(result){
-				result.setMetadata("targetKlass", klass);
-				jvm.newInternedString(key, function(strObj){
-					result.setField("name", strObj);
-					jvm.classObjects[key] = result;
-					callback(klass);
-				});
+			jvm.loadClass(klassOrDescriptor, function(klass){
+				callback(jvm.getClassObjectSync(klass));
 			});
+		} else {
+			callback(jvm.getClassObjectSync(klassOrDescriptor));
 		}
+	}
+
+	jvm.getClassObjectSync = function(klass){
+		var key = klass.name;
+		if (jvm.classObjects[key]){
+			return jvm.classObjects[key];
+		}
+		var classKlass = jvm.getLoadedClass("java/lang/Class");
+		var result = jvm.newInstanceSync(classKlass);
+		result.setMetadata("targetKlass", klass);
+		result.setField("name", jvm.newInternedStringSync(key));
+		jvm.classObjects[key] = result;
+		return result;
 	}
 
 	var JObjectProto = makeObjectPrototype(Object.prototype);
@@ -547,35 +547,40 @@ var jvm = {};
 	}
 
 	jvm.newString = function (str, callback) {
+		jvm.loadClass('java/lang/String', function (strKlass) {
+			callback(jvm.newStringSync(str));
+		});
+	}
+
+	jvm.newStringSync = function(str){
 		var internedStrObj = this.stringPool[str];
 		if (internedStrObj !== undefined) {
-			setTimeout(() => {
-				callback(internedStrObj);
-			}, 0);
-			return;
+			return internedStrObj;
 		}
-		jvm.loadClass('java/lang/String', function (strKlass) {
-			var strObj = {};
-			strObj.__proto__ = JStringProto;
-			strObj[".metadata"] = {
-				klassName: 'java/lang/String',
-				klass: strKlass
-			}
-			jvm.newArray(jvm.getLoadedClass('C'), str.length, function(value){
-				for (var i = 0; i < str.length; ++i) {
-					value[i] = str.charCodeAt(i);
-				}
-				strObj.value = value;
-				callback(strObj);
-			});
-		})
+		var strKlass = jvm.getLoadedClass('java/lang/String');
+		var strObj = {};
+		strObj.__proto__ = JStringProto;
+		strObj[".metadata"] = {
+			klassName: 'java/lang/String',
+			klass: strKlass
+		}
+		var value = jvm.newArraySync(jvm.getLoadedClass('C'), str.length);
+		for (var i = 0; i < str.length; ++i) {
+			value[i] = str.charCodeAt(i);
+		}
+		strObj.value = value;
+		return strObj;
 	}
 
 	jvm.newInternedString = function (str, callback) {
-		jvm.newString(str, function (strObj) {  //may be interned or new one
-			jvm.stringPool[str] = strObj;
-			callback(strObj);
+		jvm.loadClass('java/lang/String', function (strKlass) {
+			callback(jvm.newInternedStringSync(str));
 		});
+	}
+
+	jvm.newInternedStringSync = function(str){
+		var strObj = jvm.newStringSync(str); //may be interned or new one
+		return jvm.stringPool[str] = strObj;
 	}
 
 	jvm.internStringObjectSync = function (strObj) {
@@ -588,20 +593,25 @@ var jvm = {};
 		return internedStrObj;
 	}
 
-	jvm.newInstance = function (className, callback) {
-		var proto = JObjectProto;
-		if (className === 'java/lang/String') proto = JStringProto;
-		jvm.loadClass(className, function (klass) {
-			var obj = {
-				__proto__: proto,
-				".metadata": {
-					klassName: klass.name,
-					klass: klass
-				}
-			};
-			callback(obj);
+	jvm.newInstance = function (descriptor, callback) {
+		if(typeof descriptor !== 'string') debugger;
+		jvm.loadClass(descriptor, function (klass) {
+			callback(jvm.newInstanceSync(klass));
 		});
 	};
+
+	jvm.newInstanceSync = function(klass){
+		var proto = JObjectProto;
+		if (klass.name === 'java/lang/String') proto = JStringProto;
+		var obj = {
+			__proto__: proto,
+			".metadata": {
+				klassName: klass.name,
+				klass: klass
+			}
+		};
+		return obj;
+	}
 
 	function makeObjectPrototype(baseProto) {
 		var protoObj = { __proto__: baseProto };

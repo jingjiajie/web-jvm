@@ -39,7 +39,7 @@ jvm.interpreter = {};
 	// 	jvm.interpreter.invoke(klass, klass.methods[methodName], params || []);
 	// };
 
-	this.startThread = function (nextKlass, nextMethod, nextLocals) {
+	this.startThreadSync = function (nextKlass, nextMethod, nextLocals) {
 		var t = {
 			frames: [{
 				klass: nextKlass,
@@ -55,14 +55,15 @@ jvm.interpreter = {};
 	};
 
 	this.invokeFirst = function (nextKlass, nextMethod, nextLocals, callback) {
+		if(!callback) debugger;
 		// doNotYieldLock++;
 		var frameCount = this.currentThread.frames.length;
 		var curFrame = frameCount > 0 ? this.currentThread.frames[frameCount-1] : null; 
 		this.invoke(nextKlass, nextMethod, nextLocals || []);
 		frame.doReturn = true;
-		frame.onReturn = function(){
+		frame.onReturn = function(ret){
 			if(curFrame) loadFrame(curFrame);
-			callback();
+			callback(ret);
 		};
 		this.resume();
 		// doNotYieldLock--;
@@ -224,7 +225,8 @@ jvm.interpreter = {};
 			done = true;
 			if (thisframe.onReturn) {
 				setTimeout(() => {
-					thisframe.onReturn(thisframe);
+					var ret = thisframe.stack.pop();
+					thisframe.onReturn(ret);
 				}, 0);
 			}
 		}
@@ -854,7 +856,7 @@ jvm.interpreter = {};
 						}
 						var val = klass.fields[fieldname].static_value;
 						if (val === undefined) {
-							val = this.getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
+							val = getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
 						}
 						stack.push(val);
 						that.resume();
@@ -871,7 +873,7 @@ jvm.interpreter = {};
 					} else {
 						var val = jObj[fieldname];
 						if (val === undefined) {
-							val = jObj[fieldname] = this.getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
+							val = jObj[fieldname] = getDefaultValueByDescriptor(cp[cp[fielddesc.name_and_type_index].descriptor_index]);
 						}
 						stack.push(val);
 					}
@@ -906,16 +908,17 @@ jvm.interpreter = {};
 					jObj.setField(cp[cp[fielddesc.name_and_type_index].name_index], value);
 					break;
 				case 182: // invokevirtual
-					var methoddesc = cp[u2()];
-					var nameandtype = cp[methoddesc.name_and_type_index];
-					var className = cp[cp[methoddesc.class_index]];
-					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
+					var methodref = cp[u2()];
+					var nameandtype = cp[methodref.name_and_type_index];
+					var className = cp[cp[methodref.class_index]];
+					var paramDescriptor = cp[nameandtype.descriptor_index];
+					var params = parseMethodParams(paramDescriptor);
+					var nextMethodName = cp[nameandtype.name_index] + paramDescriptor;
 					var that = this;
 					jvm.loadClass(className, function(nextKlass){
 						var newlocals = [];
-						var specialMethod = nextKlass.methods[nextMethodName]; /*这里获取方法只是为了知道参数个数，后面会重新动态绑定 */
-						for (var i = specialMethod.paramTypes.length - 1; i >= 0; i--) {
-							if (specialMethod.paramTypes[i] == 'J' || specialMethod.paramTypes[i] == 'D') {
+						for (var i = params.length - 1; i >= 0; i--) {
+							if (params[i] == 'J' || params[i] == 'D') {
 								newlocals.unshift(null);
 								newlocals.unshift(stack.pop());
 							} else {
@@ -934,7 +937,7 @@ jvm.interpreter = {};
 							});
 							return;
 						}
-						/*重新动态绑定方法 */
+						/*动态绑定方法 */
 						nextKlass = objectref.getKlass();
 						var nextMethod = nextKlass.methods[nextMethodName];
 						while (!nextMethod) {
@@ -1035,13 +1038,14 @@ jvm.interpreter = {};
 					u1(); // 0
 					var nameandtype = cp[methoddesc.name_and_type_index];
 					var className = cp[cp[methoddesc.class_index]];
-					var nextMethodName = cp[nameandtype.name_index] + cp[nameandtype.descriptor_index];
+					var paramDescriptor = cp[nameandtype.descriptor_index];
+					var params = parseMethodParams(paramDescriptor);
+					var nextMethodName = cp[nameandtype.name_index] + paramDescriptor;
 					var that = this;
 					jvm.loadClass(className, function(nextKlass){
 						var newlocals = [];
-						var interfaceMethod = nextKlass.methods[nextMethodName]; /*这里获取方法只是为了知道参数个数，后面会重新动态绑定 */
-						for (var i = interfaceMethod.paramTypes.length - 1; i >= 0; i--) {
-							if (interfaceMethod.paramTypes[i] == 'J' || interfaceMethod.paramTypes[i] == 'D') {
+						for (var i = params.length - 1; i >= 0; i--) {
+							if (params[i] == 'J' || params[i] == 'D') {
 								newlocals.unshift(null);
 								newlocals.unshift(stack.pop());
 							} else {
@@ -1060,7 +1064,7 @@ jvm.interpreter = {};
 							});
 							return;
 						}
-						/*重新动态绑定方法 */
+						/*动态绑定方法 */
 						nextKlass = objectref.getKlass();
 						var nextMethod = nextKlass.methods[nextMethodName];
 						while (!nextMethod) {
@@ -1209,7 +1213,7 @@ jvm.interpreter = {};
 		this.currentThread.__thrown = throwable;
 	}
 
-	jvm.interpreter.getDefaultValueByDescriptor = function (descriptor) {
+	getDefaultValueByDescriptor = function (descriptor) {
 		switch (descriptor) {
 			case 'B':
 			case 'D':
@@ -1229,4 +1233,31 @@ jvm.interpreter = {};
 		}
 	}
 
+	function parseMethodParams(descriptor) {
+		if(descriptor[0] !== '(') debugger;
+		var paramTypes = [];
+		var prefix = "";
+		for (var j = 0; j < descriptor.length; j++) {
+			switch (descriptor[j]) {
+				case "(":
+					continue;
+				case "[":
+					prefix += "[";
+					continue;
+				case "L": // Object
+					var scpos = descriptor.indexOf(";", j);
+					paramTypes.push(prefix + descriptor.substring(j, scpos + 1));
+					prefix = "";
+					j = scpos;
+					continue;
+				case ")":
+					j = descriptor.length;
+					break;
+				default:
+					paramTypes.push(prefix + descriptor[j]);
+					prefix = "";
+			}
+		}
+		return paramTypes;
+	}
 }).apply(jvm.interpreter);

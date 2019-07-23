@@ -131,22 +131,18 @@ jvm.nativemethods["java/lang/Object.registerNatives()V"] = function (callback) {
 // 	}
 // }
 
-// jvm.hashcounter = 1;
+jvm.hashcounter = 1;
 
-// jvm.nativemethods["java/lang/Object.hashCode()I"] = function(me) {
-// 	if (!me.hashCode) {
-// 		me.hashCode = (123498172123123 * jvm.hashcounter++) % 0xFFFFFFFF;
-// 	}
-// 	return me.hashCode;
-// }
+jvm.nativemethods["java/lang/Object.hashCode()I"] = function(me, callback) {
+	if (!me.hashCode) {
+		me.hashCode = (123498172123123 * jvm.hashcounter++) % 0xFFFFFFFF;
+	}
+	callback(me.hashCode);
+}
 
-// jvm.nativemethods["java/lang/Object.getClass()Ljava/lang/Class;"] = function(me) {
-// 	if (typeof me == 'string') {
-// 		debugger;
-// 		//return jvm.getClassObject('string', jvm.loadClass('java/lang/String'));
-// 	}
-// 	return jvm.getClassObject(me.getKlass());
-// }
+jvm.nativemethods["java/lang/Object.getClass()Ljava/lang/Class;"] = function(me, callback) {
+	callback(jvm.getClassObjectSync(me.getKlass()));
+}
 
 // Class
 jvm.nativemethods["java/lang/Class.registerNatives()V"] = function (callback) {
@@ -162,12 +158,12 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function (callback) {
 // 	}
 // }
 
-// jvm.nativemethods["java/lang/Class.isAssignableFrom(Ljava/lang/Class;)Z"] = function(me, other) {
-// 	// other equals, extends or implements me
-// 	var myKlass = me.getMetadata("targetKlass");
-// 	var testKlass = other.getMetadata("targetKlass");
-// 	return testKlass.isSubClassOf(myKlass);
-// }
+jvm.nativemethods["java/lang/Class.isAssignableFrom(Ljava/lang/Class;)Z"] = function(me, other, callback) {
+	// other equals, extends or implements me
+	var myKlass = me.getMetadata("targetKlass");
+	var testKlass = other.getMetadata("targetKlass");
+	callback(testKlass.isSubClassOf(myKlass));
+}
 
 // jvm.nativemethods["java/lang/Class.getClassLoader0()Ljava/lang/ClassLoader;"] = function(me) {
 // 	return null;
@@ -180,46 +176,50 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function (callback) {
 // jvm.nativemethods["java/lang/Class.getName0()Ljava/lang/String;"] = function(me) {
 // 	return jvm.newInternedString(me.getMetadata("targetKlass").name);
 // }
-// jvm.nativemethods["java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;"] = function(cls, initialize, loader) {
-// 	if(typeof cls == 'string') debugger; //	cls = (typeof cls == 'string' ? cls : cls.getField("value").join(''));
-// 	return jvm.getClassObject(jvm.loadClass(cls.toString().replace(/\./g, "/")));
-// }
+
+jvm.nativemethods["java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;"] = function(clsName, initialize, loader, cls1, callback) {
+	jvm.loadClass(clsName.toString().replace(/\./g, "/"), function(klass){
+		callback(jvm.getClassObjectSync(klass));
+	});
+}
 
 // jvm.nativemethods["java/lang/Class.isArray()Z"] = function(me) {
 // 	return me.getMetadata("targetKlass").descriptor[0] == '[' ? true : false;
 // }
 
-// jvm.nativemethods["java/lang/Class.isInterface()Z"] = function(me) {
-// 	return me.getMetadata("targetKlass").access_flags & 0x0200 /*ACC_INTERFACE */ ? true : false;
-// }
+jvm.nativemethods["java/lang/Class.isInterface()Z"] = function(me, callback) {
+	callback(me.getMetadata("targetKlass").access_flags & 0x0200 /*ACC_INTERFACE */ ? true : false);
+}
 
-// jvm.nativemethods["java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflect/Constructor;"] = function(me, publicOnly) {
+// jvm.nativemethods["java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflect/Constructor;"] = function(me, publicOnly, callback) {
 // 	var methods = me.getMetadata("targetKlass").methods;
-// 	var array = jvm.newArray(jvm.loadClass("java/lang/reflect/Constructor"), 0);
-// 	for(var name in methods) {
-// 		if (!name.match(/^<init>.*/)) {
-// 			continue;
+// 	jvm.loadClass("java/lang/reflect/Constructor", function(constructorKlass){
+// 		var array = jvm.newArraySync(constructorKlass, 0);
+// 		for(var name in methods) {
+// 			if (!name.match(/^<init>.*/)) {
+// 				continue;
+// 			}
+// 			var method = methods[name];
+// 			if(publicOnly && !(method.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
+// 			var m = jvm.newInstanceSync(constructorKlass);
+// 			m.setField("theMethod", method);
+// 			m.setField("name", jvm.newInternedString(method.name));
+// 			m.setField("modifiers", method.access_flags);
+// 			m.setField("clazz", me);
+	
+// 			var exceptionTypes = jvm.newArray(jvm.getLoadedClass("java/lang/Class"), 0);
+// 			m.setField("exceptionTypes", exceptionTypes);
+	
+// 			var parameterTypes = jvm.newArray(jvm.getLoadedClass("java/lang/Class"), 0);
+// 			for(var i = 0; i < method.paramTypes.length; i++) {
+// 				var type = method.paramTypes[i];
+// 				parameterTypes.push(jvm.getClassObject(type));
+// 			}
+// 			m.setField("parameterTypes", parameterTypes);
+// 			array.push(m);
 // 		}
-// 		var method = methods[name];
-// 		if(publicOnly && !(method.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
-// 		var m = jvm.newInstance("java/lang/reflect/Constructor");
-// 		m.setField("theMethod", method);
-// 		m.setField("name", jvm.newInternedString(method.name));
-// 		m.setField("modifiers", method.access_flags);
-// 		m.setField("clazz", me);
-
-// 		var exceptionTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
-// 		m.setField("exceptionTypes", exceptionTypes);
-
-// 		var parameterTypes = jvm.newArray(jvm.loadClass("java/lang/Class"), 0);
-// 		for(var i = 0; i < method.paramTypes.length; i++) {
-// 			var type = method.paramTypes[i];
-// 			parameterTypes.push(jvm.getClassObject(type));
-// 		}
-// 		m.setField("parameterTypes", parameterTypes);
-// 		array.push(m);
-// 	}
-// 	return array;
+// 		return array;
+// 	});
 // }
 
 // jvm.nativemethods["java/lang/Class.getDeclaredMethods0(Z)[Ljava/lang/reflect/Method;"] = function(me, publicOnly) {
@@ -260,26 +260,51 @@ jvm.nativemethods["java/lang/Class.registerNatives()V"] = function (callback) {
 // 	return array;
 // }
 
-// jvm.nativemethods["java/lang/Class.isPrimitive()Z"] = function(me) {
-// 	return (me.getMetadata("targetKlass").descriptor[0] != '[' && me.getMetadata("targetKlass").descriptor[0] != 'L');
-// }
+jvm.nativemethods["java/lang/Class.isPrimitive()Z"] = function(me, callback) {
+	callback(me.getMetadata("targetKlass").descriptor[0] != '[' && me.getMetadata("targetKlass").descriptor[0] != 'L');
+}
 
-// jvm.nativemethods["java/lang/Class.getDeclaredFields0(Z)[Ljava/lang/reflect/Field;"] = function(me, publicOnly) {
-// 	var fields = me.getMetadata("targetKlass").fields;
-// 	var array = jvm.newArray(jvm.loadClass("java/lang/reflect/Field"), 0);
-// 	for(var name in fields) {
-// 		var field = fields[name];
-// 		if(publicOnly && !(field.access_flags & 0x01 /* ACC_PUBLIC */)) continue;
-// 		var f = jvm.newInstance("java/lang/reflect/Field");
-// 		f.theField = field;
-// 		f.name = jvm.newInternedString(field.name);
-// 		f.modifiers = field.access_flags;
-// 		f["clazz"] = me;
-// 		f.type = jvm.getClassObject(field.descriptor);
-// 		array.push(f);
-// 	}
-// 	return array;
-// }
+jvm.nativemethods["java/lang/Class.getDeclaredFields0(Z)[Ljava/lang/reflect/Field;"] = function(me, publicOnly, callback) {
+	jvm.loadClass("java/lang/reflect/Field", function(fieldKlass){
+		var fields = me.getMetadata("targetKlass").fields;
+		var fieldArr = [];
+		var i = 0;
+		for(var name in fields){
+			fieldArr[i++] = fields[name];
+		}
+		var array = jvm.newArraySync(fieldKlass, fieldArr.length);
+		if(fieldArr.length == 0){
+			callback(array);
+			return;
+		}else{
+			handleField(0);
+			return;
+		}
+
+		function handleField(n){
+			if(n >= fieldArr.length) {
+				callback(array);
+				return;
+			}
+			var field = fieldArr[n];
+			if(publicOnly && !(field.access_flags & 0x01 /* ACC_PUBLIC */)) {
+				handleField(n+1);
+				return;
+			}
+			var f = jvm.newInstanceSync(fieldKlass);
+			f.theField = field;
+			f.name = jvm.newInternedStringSync(field.name);
+			f.modifiers = field.access_flags;
+			f["clazz"] = me;
+			jvm.getClassObject(field.descriptor, function(obj){
+				f.type = obj;
+				array[n] = f;
+				handleField(n+1);
+			});
+			return;
+		}
+	});
+}
 
 jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;"] = function (str, callback) {
 	var descriptor;
@@ -303,30 +328,31 @@ jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/la
 // 	return jvm.getClassObject(me.getMetadata("targetKlass").descriptor.substring(1));
 // }
 
-// jvm.nativemethods["java/lang/Class.desiredAssertionStatus0(Ljava/lang/Class;)Z"] = function(cls) {
-// 	return 1;
-// }
+jvm.nativemethods["java/lang/Class.desiredAssertionStatus0(Ljava/lang/Class;)Z"] = function(cls, callback) {
+	callback(1);
+}
 
-// // String
-// jvm.nativemethods["java/lang/String.intern()Ljava/lang/String;"] = function(me) {
-// 	return jvm.internStringObjectSync(me);
-// }
+// String
+jvm.nativemethods["java/lang/String.intern()Ljava/lang/String;"] = function(me, callback) {
+	callback(jvm.internStringObjectSync(me));
+}
 
 // // Math
 // jvm.nativemethods["java/lang/StrictMath.cos(D)D"] = function(d) {
 // 	return Math.cos(d);
 // }
 
-// // ClassLoader
-// jvm.nativemethods["java/lang/ClassLoader.registerNatives()V"] = function() {
-// }
+// ClassLoader
+jvm.nativemethods["java/lang/ClassLoader.registerNatives()V"] = function(callback) {
+	callback();
+}
 
-// // Unsafe
+// Unsafe
 
-// jvm.unsafe = {};
-// jvm.unsafe.fieldoffsetcounter = 501;
-// jvm.unsafe.fieldnames_by_offset = {};
-// jvm.unsafe.fieldoffsets_by_field = {};
+jvm.unsafe = {};
+jvm.unsafe.fieldoffsetcounter = 501;
+jvm.unsafe.fieldnames_by_offset = {};
+jvm.unsafe.fieldoffsets_by_field = {};
 
 // jvm.nativemethods["sun/misc/Unsafe.allocateMemory(J)J"] = function() {
 // 	return Long.fromNumber(123);
@@ -338,9 +364,10 @@ jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/la
 // jvm.nativemethods["sun/misc/Unsafe.park(ZJ)V"] = function() {
 // 	jvm.interpreter.currentThread.sleeping = true;
 // }
-// jvm.nativemethods["sun/misc/Unsafe.putOrderedObject(Ljava/lang/Object;JLjava/lang/Object;)V"] = function(){
-// 	//TODO
-// }
+jvm.nativemethods["sun/misc/Unsafe.putOrderedObject(Ljava/lang/Object;JLjava/lang/Object;)V"] = function(me, a, b, b0, c, callback){
+	//TODO
+	callback();
+}
 
 // jvm.nativemethods["sun/misc/Unsafe.putObject(Ljava/lang/Object;JLjava/lang/Object;)V"] = function() {
 // }
@@ -352,22 +379,23 @@ jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/la
 // jvm.nativemethods["sun/misc/Unsafe.freeMemory(J)V"] = function() {
 // }
 
-// jvm.nativemethods["sun/misc/Unsafe.registerNatives()V"] = function() {
-// }
+jvm.nativemethods["sun/misc/Unsafe.registerNatives()V"] = function(callback) {
+	callback();
+}
 
 
-// jvm.nativemethods["sun/misc/Unsafe.compareAndSwapObject(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z"] = 
-// jvm.nativemethods["sun/misc/Unsafe.compareAndSwapInt(Ljava/lang/Object;JII)Z"] = function(me, target, offset, offset_2, expect, update) {
-// 	var fieldname = jvm.unsafe.fieldnames_by_offset[offset];
-// 	if (!fieldname) {
-// 		debugger;
-// 	}
-// 	var doit = (target.getField(fieldname) == expect)
-// 	if (doit) {
-// 		target[fieldname] = update;
-// 	}
-// 	return doit ? 1 : 0;
-// }
+jvm.nativemethods["sun/misc/Unsafe.compareAndSwapObject(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z"] = 
+jvm.nativemethods["sun/misc/Unsafe.compareAndSwapInt(Ljava/lang/Object;JII)Z"] = function(me, target, offset, offset_2, expect, update, callback) {
+	var fieldname = jvm.unsafe.fieldnames_by_offset[offset];
+	if (!fieldname) {
+		debugger;
+	}
+	var doit = (target.getField(fieldname) == expect)
+	if (doit) {
+		target[fieldname] = update;
+	}
+	callback(doit ? 1 : 0);
+}
 
 // jvm.nativemethods["sun/misc/Unsafe.getObjectVolatile(Ljava/lang/Object;J)Ljava/lang/Object;"] = function() {
 // 	return null;
@@ -377,60 +405,67 @@ jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/la
 // 	return null;
 // }
 
-// jvm.nativemethods["sun/misc/Unsafe.arrayIndexScale(Ljava/lang/Class;)I"] = function() {
-// 	return 1;
-// }
-// jvm.nativemethods["sun/misc/Unsafe.arrayBaseOffset(Ljava/lang/Class;)I"] = function() {
-// 	return 0;
-// }
+jvm.nativemethods["sun/misc/Unsafe.arrayIndexScale(Ljava/lang/Class;)I"] = function(me, cls, callback) {
+	callback(1);
+}
 
-// jvm.nativemethods["sun/misc/Unsafe.addressSize()I"] = function() {
-// 	/* TODO 这个方法到底应该返回多少，看看实际的调用再决定 */
-// 	return 8;
-// }
+jvm.nativemethods["sun/misc/Unsafe.arrayBaseOffset(Ljava/lang/Class;)I"] = function(me, cls, callback) {
+	callback(0);
+}
 
-// jvm.nativemethods["sun/misc/Unsafe.pageSize()I"] = function() {
-// 	/* TODO 这个方法到底应该返回多少，看看实际的调用再决定 */
-// 	return 4096;
-// }
+jvm.nativemethods["sun/misc/Unsafe.addressSize()I"] = function(me, callback) {
+	/* TODO 这个方法到底应该返回多少，看看实际的调用再决定 */
+	callback(8);
+}
 
-// jvm.nativemethods["sun/misc/Unsafe.staticFieldOffset(Ljava/lang/reflect/Field;)J"] = 
-// jvm.nativemethods["sun/misc/Unsafe.objectFieldOffset(Ljava/lang/reflect/Field;)J"] = function(me, field) {
-// 	if (!jvm.unsafe.fieldoffsets_by_field[field.getField("name")]) {
-// 		var offset = jvm.unsafe.fieldoffsetcounter++;
-// 		jvm.unsafe.fieldnames_by_offset[offset] = field.getField("name");
-// 		jvm.unsafe.fieldoffsets_by_field[field.getField("name")] = offset;
-// 	}
-// 	return Long.fromNumber(jvm.unsafe.fieldoffsets_by_field[field.getField("name")]);
-// }
+jvm.nativemethods["sun/misc/Unsafe.pageSize()I"] = function(me, callback) {
+	/* TODO 这个方法到底应该返回多少，看看实际的调用再决定 */
+	callback(4096);
+}
+
+jvm.nativemethods["sun/misc/Unsafe.staticFieldOffset(Ljava/lang/reflect/Field;)J"] = 
+jvm.nativemethods["sun/misc/Unsafe.objectFieldOffset(Ljava/lang/reflect/Field;)J"] = function(me, field, callback) {
+	if (!jvm.unsafe.fieldoffsets_by_field[field.getField("name")]) {
+		var offset = jvm.unsafe.fieldoffsetcounter++;
+		jvm.unsafe.fieldnames_by_offset[offset] = field.getField("name");
+		jvm.unsafe.fieldoffsets_by_field[field.getField("name")] = offset;
+	}
+	callback(Long.fromNumber(jvm.unsafe.fieldoffsets_by_field[field.getField("name")]));
+}
 
 // jvm.nativemethods["sun/misc/Unsafe.ensureClassInitialized(Ljava/lang/Class;)V"] = function(me, cls) {
 // // console.log("Ensure class initialized ", cls)
 // }
 
-// // AtomicLong
-// jvm.nativemethods["java/util/concurrent/atomic/AtomicLong.VMSupportsCS8()Z"] = function() {
-// 	return 0;
-// }
+// AtomicLong
+jvm.nativemethods["java/util/concurrent/atomic/AtomicLong.VMSupportsCS8()Z"] = function(callback) {
+	callback(0);
+}
 
 
-// // Reflection
-// jvm.nativemethods["sun/reflect/Reflection.getCallerClass(I)Ljava/lang/Class;"] = function() {
-// 	/* 这他妈直接返回Object了？ */
-// 	var instance = jvm.getClassObject(jvm.loadClass("java/lang/Object"));
-// 	return instance;
-// }
+// Reflection
+jvm.nativemethods["sun/reflect/Reflection.getCallerClass(I)Ljava/lang/Class;"] = function(n, callback) {
+	/* 这他妈直接返回Object了？ */
+	jvm.loadClass("java/lang/Object", function(klass){
+		jvm.getClassObject(klass, function(obj){
+			callback(obj);
+		})
+	});
+}
 
-// // Reflection
-// jvm.nativemethods["sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;"] = function() {
-// 	/* 这他妈直接返回Object了？ */
-// 	var instance = jvm.getClassObject(jvm.loadClass("java/lang/Object"));
-// 	return instance;
-// }
+// Reflection
+jvm.nativemethods["sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;"] = function(callback) {
+	/* 这他妈直接返回Object了？ */
+	jvm.loadClass("java/lang/Object", function(klass){
+		jvm.getClassObject(klass, function(obj){
+			callback(obj);
+		})
+	});
+}
 
-// jvm.nativemethods["sun/reflect/Reflection.getClassAccessFlags(Ljava/lang/Class;)I"] = function(me) {
-// 	return me.getMetadata("targetKlass").access_flags;
-// }
+jvm.nativemethods["sun/reflect/Reflection.getClassAccessFlags(Ljava/lang/Class;)I"] = function(obj, callback) {
+	callback(obj.getMetadata("targetKlass").access_flags);
+}
 
 // jvm.nativemethods["java/lang/Class.getModifiers()I"] = function(me) {
 // 	return me.getMetadata("targetKlass").access_flags;
@@ -489,23 +524,27 @@ jvm.nativemethods["java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/la
 // 	return jvm.newArray(cls.getMetadata("targetKlass"), count);
 // }
 
-// jvm.nativemethods["java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V"] = function(src, srcPos, dest, destPos, length) {
-// 	for(var i = 0; i < length; i++) {
-// 		dest[destPos++] = src[srcPos++];
-// 	}
-// }
+jvm.nativemethods["java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V"] = function(src, srcPos, dest, destPos, length, callback) {
+	for(var i = 0; i < length; i++) {
+		dest[destPos++] = src[srcPos++];
+	}
+	callback();
+}
 
-// jvm.nativemethods["java/lang/System.setOut0(Ljava/io/PrintStream;)V"] = function(it) {
-// 	jvm.loadClass("java/lang/System").fields["out"].static_value = it;
-// }
+jvm.nativemethods["java/lang/System.setOut0(Ljava/io/PrintStream;)V"] = function(it, callback) {
+	jvm.getLoadedClass("java/lang/System").fields["out"].static_value = it;
+	callback();
+}
 
-// jvm.nativemethods["java/lang/System.setIn0(Ljava/io/InputStream;)V"] = function(it) {
-// 	jvm.loadClass("java/lang/System").fields['in'].static_value = it;
-// }
+jvm.nativemethods["java/lang/System.setIn0(Ljava/io/InputStream;)V"] = function(it, callback) {
+	jvm.getLoadedClass("java/lang/System").fields['in'].static_value = it;
+	callback();
+}
 
-// jvm.nativemethods["java/lang/System.setErr0(Ljava/io/PrintStream;)V"] = function(it) {
-// 	jvm.loadClass("java/lang/System").fields["err"].static_value = it;
-// }
+jvm.nativemethods["java/lang/System.setErr0(Ljava/io/PrintStream;)V"] = function(it, callback) {
+	jvm.getLoadedClass("java/lang/System").fields["err"].static_value = it;
+	callback();
+}
 
 jvm.nativemethods["java/lang/System.identityHashCode(Ljava/lang/Object;)I"] = function (it, callback) {
 	if (!it.hashCode) {
@@ -542,7 +581,7 @@ jvm.nativemethods["java/lang/System.initProperties(Ljava/util/Properties;)Ljava/
 				nameAndValues.pop();
 				jvm.interpreter.invokeFirst(props.getKlass(),
 					props.getKlass().methods["setProperty(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;"],
-					[props, name, value],
+					[props, strObjName, strObjValue],
 					setProperties.bind(this, nameAndValues, theCallback));
 			});
 		});
@@ -569,7 +608,7 @@ jvm.nativemethods["java/lang/System.initProperties(Ljava/util/Properties;)Ljava/
 jvm.nativemethods["java/lang/System.registerNatives()V"] = function (callback) {
 	var sysKlass = jvm.getLoadedClass('java/lang/System');
 	sysKlass.onInitFinish = function (theCallback) {
-		jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"], function () { theCallback(); });
+		jvm.interpreter.invokeFirst(sysKlass, sysKlass.methods["initializeSystemClass()V"], null, function () { theCallback(); });
 	}
 	callback();
 }
@@ -708,9 +747,9 @@ jvm.nativemethods["java/lang/Double.doubleToRawLongBits(D)J"] = function (d, d0,
 // 	return Long.fromNumber(256 * 1000 * 1000);
 // };
 
-// jvm.nativemethods["java/lang/Runtime.availableProcessors()I"] = function() {
-// 	return 1;
-// };
+jvm.nativemethods["java/lang/Runtime.availableProcessors()I"] = function(me, callback) {
+	callback(1);
+};
 
 // VM
 jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
@@ -776,26 +815,26 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // // return it;
 // // }
 
-// // AccessController
-// jvm.nativemethods["java/security/AccessController.getStackAccessControlContext()Ljava/security/AccessControlContext;"] = function(action) {
-// 	return null;
-// }
+// AccessController
+jvm.nativemethods["java/security/AccessController.getStackAccessControlContext()Ljava/security/AccessControlContext;"] = function( callback) {
+	callback(null);
+}
 
-// jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;)Ljava/lang/Object;"] = function(action) {
-// 	return jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action]);
-// }
+jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;)Ljava/lang/Object;"] = function(action, callback) {
+	jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action], callback);
+}
 
-// jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;)Ljava/lang/Object;"] = function(action) {
-// 	return jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action]);
-// }
+jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;)Ljava/lang/Object;"] = function(action, callback) {
+	jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action], callback);
+}
 
-// jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;"] = function(action) {
-// 	return jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action]);
-// }
+jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;"] = function(action, callback) {
+	jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action], callback);
+}
 
-// jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;"] = function(action) {
-// 	return jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action]);
-// }
+jvm.nativemethods["java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;"] = function(action, callback) {
+	jvm.interpreter.invokeFirst(action.getKlass(), action.getKlass().methods["run()Ljava/lang/Object;"], [action], callback);
+}
 
 // // Thread
 // jvm.nativemethods["java/lang/Thread.isInterrupted(Z)Z"] = function(me) {
@@ -828,45 +867,61 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // 	}, millis);
 // };
 
-// jvm.nativemethods["java/lang/Thread.registerNatives()V"] = function() {
-// };
+jvm.nativemethods["java/lang/Thread.registerNatives()V"] = function(callback) {
+	callback();
+};
 
-// jvm.nativemethods["java/lang/Thread.setPriority0(I)V"] = function() {
-// };
+jvm.nativemethods["java/lang/Thread.setPriority0(I)V"] = function(me, priority, callback) {
+	callback();
+};
 
-// jvm.nativemethods["java/lang/Thread.isAlive()Z"] = function() {
-// 	return 0;
-// };
+jvm.nativemethods["java/lang/Thread.isAlive()Z"] = function(me, callback) {
+	callback(0);
+};
 
-// jvm.nativemethods["java/lang/Thread.start0()V"] = function(me) {
-// 	me.setField("me", me);
-// 	me.setField("threadStatus", 1);
-// 	var myName = me.name.join('');
-// 	//console.log("Starting thread: " + myName);
-// 	if (myName == "Reference Handler") {
-// 		// Just leave this one..
-// 		// Weak references don't exist in this world.
-// 	} else {
-// 		me.theThread = jvm.interpreter.startThread(me.getKlass(), me.getKlass().methods['run()V'], [me]);
-// 	}
-// };
+jvm.nativemethods["java/lang/Thread.start0()V"] = function(me, callback) {
+	me.setField("me", me);
+	me.setField("threadStatus", 1);
+	var myName = me.name.join('');
+	//console.log("Starting thread: " + myName);
+	if (myName == "Reference Handler") {
+		// Just leave this one..
+		// Weak references don't exist in this world.
+	} else {
+		me.theThread = jvm.interpreter.startThreadSync(me.getKlass(), me.getKlass().methods['run()V'], [me]);
+	}
+	callback();
+};
 
-// jvm.nativemethods["java/lang/Thread.currentThread()Ljava/lang/Thread;"] = function() {
-// 	if (!jvm.interpreter.currentThread.javaThreadObject) {
-// 		var o = jvm.newInstance("java/lang/Thread");
-// 		var group = jvm.newInstance("java/lang/ThreadGroup");
-// 		group.maxPriority = 10;
-// 		o.setField("group", group);
-// 		o.setField("priority", 1);
-// 		o.setField("daemon", 0);
-// 		o.setField("tid", Long.fromNumber(1));
-// 		o.setField("threadStatus", 1);
-// 		o.setField("name", jvm.newString("main").value);
-// 		o.theThread = jvm.interpreter.currentThread;
-// 		jvm.interpreter.currentThread.javaThreadObject = o;
-// 	}
-// 	return jvm.interpreter.currentThread.javaThreadObject;
-// }
+jvm.nativemethods["java/lang/Thread.currentThread()Ljava/lang/Thread;"] = function(callback) {
+	if (!jvm.interpreter.currentThread.javaThreadObject) {
+		jvm.newInstance("java/lang/Thread", function(o){
+			jvm.newInstance("java/lang/ThreadGroup", function(group){
+				group.maxPriority = 10;
+				o.setField("group", group);
+				o.setField("priority", 1);
+				o.setField("daemon", 0);
+				o.setField("tid", Long.fromNumber(1));
+				o.setField("threadStatus", 1);
+				var name = 'main';
+				var nameArr = jvm.newArraySync(jvm.getLoadedClass('C'), name.length);
+				for(var i=0; i<name.length; ++i){
+					nameArr[i] = name.charCodeAt(i);
+				}
+				o.setField("name", nameArr);
+				o.theThread = jvm.interpreter.currentThread;
+				jvm.interpreter.currentThread.javaThreadObject = o;
+				returnValue(o)
+			});
+		});
+	}else{
+		returnValue(jvm.interpreter.currentThread.javaThreadObject);
+	}
+	
+	function returnValue(o){
+		callback(o);
+	}
+}
 
 // // ObjectStreamClass
 // jvm.nativemethods["java/io/ObjectStreamClass.initNative()V"] = function() {
@@ -888,33 +943,35 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // jvm.nativemethods["java/io/UnixFileSystem.list(Ljava/io/File;)[Ljava/lang/String;"] = function() {
 // 	return jvm.newArray(jvm.loadClass("java/lang/String"), 0);
 // };
-// jvm.nativemethods["java/io/UnixFileSystem.initIDs()V"] = function() {};
+jvm.nativemethods["java/io/UnixFileSystem.initIDs()V"] = function(callback) {
+	callback();
+};
 
-// jvm.files = {
-// 		"/JAVA_HOME/lib/zi/Europe/Amsterdam": {
+jvm.files = {
+		"/JAVA_HOME/lib/zi/Europe/Amsterdam": {
 
-// 		},
-// 		"/JAVA_HOME/lib/zi/ZoneInfoMappings": {
+		},
+		"/JAVA_HOME/lib/zi/ZoneInfoMappings": {
 
-// 		},
-// 		"/awt": {
-// 			isDirectory: true
-// 		},
-// 		"/bin": {
-// 			isDirectory: true
-// 		},
-// 		"/bin/jline": {
-// 			isDirectory: true
-// 		},
-// 		"/bin/jline/CandidateListCompletionHandler.properties": {
+		},
+		"/awt": {
+			isDirectory: true
+		},
+		"/bin": {
+			isDirectory: true
+		},
+		"/bin/jline": {
+			isDirectory: true
+		},
+		"/bin/jline/CandidateListCompletionHandler.properties": {
 
-// 		},
-// 		"/bin/test.properties": {
-// 		},
-// 		"/USER_DIR/words.txt": {
+		},
+		"/bin/test.properties": {
+		},
+		"/USER_DIR/words.txt": {
 
-// 		}
-// }
+		}
+}
 
 
 // jvm.nativemethods["java/io/UnixFileSystem.getLength(Ljava/io/File;)J"] = function(me, file) {
@@ -949,9 +1006,10 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // 	return file.toString().substring(0, 1) == "/" ? file : jvm.newString("/" + file.toString());
 // }
 
-// // FileOutputStream
-// jvm.nativemethods["java/io/FileOutputStream.initIDs()V"] = function(me) {
-// }
+// FileOutputStream
+jvm.nativemethods["java/io/FileOutputStream.initIDs()V"] = function(callback) {
+	callback();
+}
 
 // jvm.nativemethods["java/io/FileOutputStream.writeBytes([BIIZ)V"] = function(me, bytes, start, len, append /*TODO: unimplemented */) {
 // 	var buf = new Array(len);
@@ -973,9 +1031,10 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // 	}
 // }
 
-// // FileInputStream
-// jvm.nativemethods["java/io/FileInputStream.initIDs()V"] = function(me) {
-// }
+// FileInputStream
+jvm.nativemethods["java/io/FileInputStream.initIDs()V"] = function(callback) {
+	callback();
+}
 
 // jvm.nativemethods["java/io/FileInputStream.open(Ljava/lang/String;)V"] = function(me, str) {
 // 	if(typeof str == 'string') debugger; //str = (typeof str == 'string' ? str : str.getField("value").join(''));
@@ -1051,9 +1110,10 @@ jvm.nativemethods["sun/misc/VM.initialize()V"] = function(callback) {
 // 	return me.filepos - startpos;
 // }
 
-// // FileDescriptor
-// jvm.nativemethods["java/io/FileDescriptor.initIDs()V"] = function(me) {
-// }
+// FileDescriptor
+jvm.nativemethods["java/io/FileDescriptor.initIDs()V"] = function(callback) {
+	callback();
+}
 
 // jvm.nativemethods["java/io/FileDescriptor.set(I)J"] = function(me, n) {
 // 	/*TODO 返回多少不知道 */
